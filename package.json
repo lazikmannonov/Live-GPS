@@ -1,0 +1,14 @@
+{
+  "name": "live-gps",
+  "version": "1.0.0",
+  "description": "Real-time group GPS",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "pg": "^8.23.1",
+    "ws": "^8.18.3"
+  }
+}
