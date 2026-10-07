@@ -1510,3 +1510,17 @@ body.dark .switch-form input{
         gap:10px;
     }
 }
+
+/* =====================================================
+   OFFLINE GPS MEMBER
+===================================================== */
+
+.gps-marker.offline {
+    opacity: .55;
+    filter: grayscale(.65);
+}
+
+.gps-marker.offline .gps-marker-dot {
+    box-shadow:
+        0 0 0 5px rgba(120,130,140,.12);
+}
