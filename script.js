@@ -2,7 +2,7 @@
 
 /* =========================================================
    LIVE GPS — SCRIPT.JS
-   FULL FIXED VERSION
+   FULL VERSION
    ========================================================= */
 
 const STORAGE = {
@@ -287,6 +287,28 @@ function initEvents() {
             }
         }
     );
+
+    /*
+     * A'zolar ro'yxatida bosilgan odamni topish.
+     */
+    els.membersList?.addEventListener(
+        "click",
+        event => {
+            const item =
+                event.target.closest(
+                    ".member-item"
+                );
+
+            if (!item) return;
+
+            const userId =
+                item.dataset.userId;
+
+            if (!userId) return;
+
+            focusUserOnMap(userId);
+        }
+    );
 }
 
 
@@ -362,10 +384,6 @@ function connectWebSocket() {
                 true
             );
 
-            /*
-             * Foydalanuvchi yangi guruh yaratishni
-             * kutayotgan bo'lsa.
-             */
             if (
                 state.pendingAction === "create"
             ) {
@@ -377,9 +395,6 @@ function connectWebSocket() {
                 return;
             }
 
-            /*
-             * Qo'lda guruhga qo'shilish.
-             */
             if (
                 state.pendingAction === "join" &&
                 state.pendingRoomCode
@@ -391,9 +406,6 @@ function connectWebSocket() {
                 return;
             }
 
-            /*
-             * F5/reload holati.
-             */
             if (
                 state.roomCode &&
                 state.roomCode !== state.invalidRoomCode
@@ -527,7 +539,6 @@ function handleMessage(data) {
         data
     );
 
-    /* CONNECTED */
     if (data.type === "connected") {
         if (data.userId) {
             saveUserId(data.userId);
@@ -536,7 +547,6 @@ function handleMessage(data) {
         return;
     }
 
-    /* ROOM CREATED */
     if (data.type === "room-created") {
         const code =
             normalizeRoomCode(
@@ -569,7 +579,6 @@ function handleMessage(data) {
         return;
     }
 
-    /* JOINED ROOM */
     if (data.type === "joined-room") {
         const code =
             normalizeRoomCode(
@@ -604,7 +613,6 @@ function handleMessage(data) {
         return;
     }
 
-    /* USERS */
     if (data.type === "users") {
         state.users =
             Array.isArray(data.users)
@@ -618,18 +626,24 @@ function handleMessage(data) {
         return;
     }
 
-    /* LEFT */
     if (data.type === "left-room") {
         state.joining = false;
         state.pendingAction = null;
         state.pendingRoomCode = null;
 
+        /*
+         * Guruh o'chirilmaydi.
+         * Faqat hozirgi sessiyadan chiqamiz.
+         */
+        stopLocation();
+
         showSetup();
+
+        renderSavedGroups();
 
         return;
     }
 
-    /* ERROR */
     if (data.type === "error") {
         state.joining = false;
 
@@ -677,12 +691,6 @@ function handleMessage(data) {
             state.pendingAction = null;
             state.roomCode = "";
 
-            /*
-             * Faqat avtomatik F5 join kodi
-             * o'chiriladi.
-             *
-             * Saqlangan guruh o'chirilmaydi.
-             */
             localStorage.removeItem(
                 STORAGE.ROOM_CODE
             );
@@ -712,8 +720,6 @@ function handleMessage(data) {
 
         showError(message);
         setButtonLoading(false);
-
-        return;
     }
 }
 
@@ -814,12 +820,7 @@ function joinRoom() {
 
     saveUserName(name);
 
-    /*
-     * Foydalanuvchi kodni qo'lda kiritdi.
-     * Oldingi invalid blokni olib tashlaymiz.
-     */
     state.invalidRoomCode = "";
-
     state.pendingRoomCode = code;
 
     saveRoomCode(code);
@@ -860,15 +861,6 @@ function sendJoin(code) {
 
         return;
     }
-
-    /*
-     * MUHIM:
-     * Bu yerda eski invalid code uchun
-     * blok yo'q.
-     *
-     * Foydalanuvchi saqlangan guruhni
-     * qaytadan bosganda server yana tekshiradi.
-     */
 
     state.joining = true;
     state.pendingAction = "join";
@@ -955,6 +947,58 @@ function switchRoom() {
 
 
 /* =========================================================
+   LEAVE ROOM
+   ========================================================= */
+
+function leaveRoom() {
+    if (!state.roomCode) {
+        showSetup();
+        return;
+    }
+
+    /*
+     * Serverga chiqish xabarini yuboramiz.
+     */
+    if (state.connected) {
+        send({
+            type: "leave-room",
+            roomCode: state.roomCode,
+            userId: state.userId
+        });
+    }
+
+    /*
+     * GPS kuzatuvini to'xtatamiz.
+     */
+    stopLocation();
+
+    /*
+     * Guruh kodi localStorage'dan o'chiriladi,
+     * lekin SAVED_GROUPS o'zgarmaydi.
+     */
+    clearRoomCode();
+
+    state.users = [];
+    state.joining = false;
+    state.pendingAction = null;
+    state.pendingRoomCode = null;
+
+    clearMapMarkers();
+
+    if (els.membersList) {
+        els.membersList.innerHTML = `
+            <div class="empty-members">
+                A'zolar kutilmoqda...
+            </div>
+        `;
+    }
+
+    showSetup();
+    renderSavedGroups();
+}
+
+
+/* =========================================================
    ROOM UI
    ========================================================= */
 
@@ -974,6 +1018,8 @@ function showRoom(code) {
         els.roomCard.classList.remove("hidden");
         els.roomCard.style.display = "block";
     }
+
+    addLeaveRoomButton();
 
     updateRoomConnection(
         state.connected
@@ -1003,6 +1049,82 @@ function showSetup() {
     }
 
     setButtonLoading(false);
+}
+
+
+/* =========================================================
+   LEAVE BUTTON
+   ========================================================= */
+
+function addLeaveRoomButton() {
+    if (!els.roomCard) return;
+
+    let button =
+        document.getElementById(
+            "leaveRoomBtn"
+        );
+
+    if (button) return;
+
+    button =
+        document.createElement("button");
+
+    button.id = "leaveRoomBtn";
+    button.type = "button";
+
+    button.textContent =
+        "🚪 Guruhdan chiqish";
+
+    /*
+     * Kichik va premium ko'rinish.
+     * CSS faylga tegmasdan ishlaydi.
+     */
+    button.style.display = "block";
+    button.style.width = "100%";
+    button.style.maxWidth = "240px";
+    button.style.margin = "16px auto 4px";
+    button.style.padding = "9px 14px";
+    button.style.borderRadius = "12px";
+    button.style.border = "1px solid rgba(120,130,125,.25)";
+    button.style.background = "transparent";
+    button.style.color = "inherit";
+    button.style.fontSize = "13px";
+    button.style.fontWeight = "600";
+    button.style.cursor = "pointer";
+    button.style.opacity = ".82";
+    button.style.transition = "all .2s ease";
+
+    button.addEventListener(
+        "mouseenter",
+        () => {
+            button.style.opacity = "1";
+            button.style.transform =
+                "translateY(-1px)";
+        }
+    );
+
+    button.addEventListener(
+        "mouseleave",
+        () => {
+            button.style.opacity = ".82";
+            button.style.transform =
+                "translateY(0)";
+        }
+    );
+
+    button.addEventListener(
+        "click",
+        leaveRoom
+    );
+
+    /*
+     * Members listdan keyin joylashtiramiz.
+     */
+    if (els.membersList) {
+        els.membersList.after(button);
+    } else {
+        els.roomCard.appendChild(button);
+    }
 }
 
 
@@ -1279,10 +1401,22 @@ function startLocation() {
         );
 }
 
-function updateLocationStatus(text) {
-    if (els.locationStatus) {
-        els.locationStatus.textContent = text;
+function stopLocation() {
+    if (
+        state.locationWatchId !== null &&
+        navigator.geolocation
+    ) {
+        navigator.geolocation.clearWatch(
+            state.locationWatchId
+        );
     }
+
+    state.locationWatchId = null;
+    state.currentPosition = null;
+
+    updateLocationStatus(
+        "Kutilmoqda..."
+    );
 }
 
 
@@ -1458,6 +1592,12 @@ function renderUsers(users) {
     }
 
     updateMapMarkers(users);
+
+    /*
+     * Tugma membersList qayta render bo'lganda
+     * o'chib ketmasligi uchun yana tekshiramiz.
+     */
+    addLeaveRoomButton();
 }
 
 function renderMember(user) {
@@ -1502,6 +1642,10 @@ function renderMember(user) {
             data-user-id="${escapeHTML(
                 String(user.id || "")
             )}"
+            role="button"
+            tabindex="0"
+            title="Xaritada ko'rish"
+            style="cursor:pointer"
         >
             <div class="member-avatar">
                 ${escapeHTML(
@@ -1536,6 +1680,75 @@ function renderMember(user) {
         </div>
     `;
 }
+
+
+/* =========================================================
+   CLICK MEMBER → MAP
+   ========================================================= */
+
+function focusUserOnMap(userId) {
+    if (!state.map) {
+        return;
+    }
+
+    const user =
+        state.users.find(
+            item =>
+                String(item.id) ===
+                String(userId)
+        );
+
+    if (!user) {
+        return;
+    }
+
+    const lat =
+        Number(user.lat);
+
+    const lng =
+        Number(user.lng);
+
+    if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng)
+    ) {
+        showError(
+            "Bu a'zoning joylashuvi mavjud emas."
+        );
+
+        return;
+    }
+
+    const marker =
+        state.markers.get(
+            String(user.id)
+        );
+
+    state.map.setView(
+        [
+            lat,
+            lng
+        ],
+        17,
+        {
+            animate: true
+        }
+    );
+
+    /*
+     * Marker bo'lsa popupni ochamiz.
+     */
+    if (marker) {
+        setTimeout(() => {
+            marker.openPopup();
+        }, 350);
+    }
+}
+
+
+/* =========================================================
+   MAP MARKERS
+   ========================================================= */
 
 function updateMapMarkers(users) {
     if (!state.map) {
@@ -1637,21 +1850,21 @@ function updateMapMarkers(users) {
                 : "Offline";
 
         marker.bindPopup(`
-            <strong>${title}</strong>
-            <br>
-            ${status}
-            <br>
-            ${lat.toFixed(5)},
-            ${lng.toFixed(5)}
+            <div style="min-width:140px">
+                <strong>${title}</strong>
+                <br>
+                <span>${status}</span>
+                <br>
+                <small>
+                    ${lat.toFixed(5)},
+                    ${lng.toFixed(5)}
+                </small>
+            </div>
         `);
     });
 
     /*
-     * Serverdan butunlay yo'qolgan
-     * markerlarni olib tashlaymiz.
-     *
-     * Offline foydalanuvchi serverdan
-     * kelayotgan bo'lsa, marker qoladi.
+     * Serverdan butunlay yo'qolgan markerlar.
      */
     for (
         const [id, marker]
@@ -1674,6 +1887,37 @@ function updateMapMarkers(users) {
             state.markers.delete(id);
         }
     }
+}
+
+function clearMapMarkers() {
+    if (!state.map) {
+        return;
+    }
+
+    for (
+        const [id, marker]
+        of state.markers
+    ) {
+        try {
+            state.map.removeLayer(
+                marker
+            );
+        } catch {}
+    }
+
+    for (
+        const [id, circle]
+        of state.accuracyCircles
+    ) {
+        try {
+            state.map.removeLayer(
+                circle
+            );
+        } catch {}
+    }
+
+    state.markers.clear();
+    state.accuracyCircles.clear();
 }
 
 
@@ -2109,10 +2353,6 @@ function renderSavedGroups() {
                             code;
                     }
 
-                    /*
-                     * Saqlangan guruhni foydalanuvchi
-                     * o'zi tanladi.
-                     */
                     state.invalidRoomCode = "";
 
                     joinRoom();
@@ -2142,22 +2382,6 @@ function renderSavedGroups() {
 /* =========================================================
    THEME
    ========================================================= */
-
-/*
- * MUHIM:
- *
- * Sizning style.css:
- *
- * body.dark { ... }
- *
- * ishlatayapti.
- *
- * Shuning uchun oldingi:
- *
- * document.documentElement.dataset.theme
- *
- * o'rniga body.dark ishlatiladi.
- */
 
 function initTheme() {
     const saved =
@@ -2198,19 +2422,11 @@ function applyTheme(
     const isDark =
         theme === "dark";
 
-    /*
-     * CSS bilan mos:
-     * body.dark
-     */
     document.body.classList.toggle(
         "dark",
         isDark
     );
 
-    /*
-     * Qo'shimcha atribut.
-     * Kelajakdagi CSS uchun ham foydali.
-     */
     document.documentElement.dataset.theme =
         isDark
             ? "dark"
