@@ -2,7 +2,7 @@
 
 /* =========================================================
    LIVE GPS — SCRIPT.JS
-   HTML bilan to'liq moslangan versiya
+   To'liq tuzatilgan versiya
    ========================================================= */
 
 const STORAGE = {
@@ -15,9 +15,15 @@ const STORAGE = {
 
 const state = {
     ws: null,
-    userId: localStorage.getItem(STORAGE.USER_ID) || "",
-    userName: localStorage.getItem(STORAGE.USER_NAME) || "",
-    roomCode: localStorage.getItem(STORAGE.ROOM_CODE) || "",
+
+    userId:
+        localStorage.getItem(STORAGE.USER_ID) || "",
+
+    userName:
+        localStorage.getItem(STORAGE.USER_NAME) || "",
+
+    roomCode:
+        localStorage.getItem(STORAGE.ROOM_CODE) || "",
 
     connected: false,
     connecting: false,
@@ -38,7 +44,13 @@ const state = {
     pendingAction: null,
     pendingRoomCode: null,
 
-    initialized: false
+    initialized: false,
+
+    /*
+     * Noto'g'ri/eski room kodi bilan
+     * qayta-qayta join yuborilmasligi uchun.
+     */
+    invalidRoomCode: ""
 };
 
 
@@ -50,41 +62,80 @@ let els = {};
 
 
 function cacheDom() {
+
     els = {
-        setupCard: document.getElementById("setupCard"),
-        roomCard: document.getElementById("roomCard"),
 
-        userName: document.getElementById("userName"),
-        roomCode: document.getElementById("roomCode"),
+        setupCard:
+            document.getElementById("setupCard"),
 
-        createRoomBtn: document.getElementById("createRoomBtn"),
-        joinRoomBtn: document.getElementById("joinRoomBtn"),
+        roomCard:
+            document.getElementById("roomCard"),
 
-        setupError: document.getElementById("setupError"),
-        roomError: document.getElementById("roomError"),
+        userName:
+            document.getElementById("userName"),
 
-        currentRoomCode: document.getElementById("currentRoomCode"),
-        copyRoomBtn: document.getElementById("copyRoomBtn"),
-        copyRoomText: document.getElementById("copyRoomText"),
+        roomCode:
+            document.getElementById("roomCode"),
 
-        connectionStatus: document.getElementById("connectionStatus"),
-        locationStatus: document.getElementById("locationStatus"),
+        createRoomBtn:
+            document.getElementById("createRoomBtn"),
 
-        membersCount: document.getElementById("membersCount"),
-        membersList: document.getElementById("membersList"),
+        joinRoomBtn:
+            document.getElementById("joinRoomBtn"),
 
-        switchRoomInput: document.getElementById("switchRoomInput"),
-        switchRoomBtn: document.getElementById("switchRoomBtn"),
+        setupError:
+            document.getElementById("setupError"),
 
-        map: document.getElementById("map"),
-        myLocationBtn: document.getElementById("myLocationBtn"),
-        centerMapBtn: document.getElementById("centerMapBtn"),
+        roomError:
+            document.getElementById("roomError"),
 
-        connectionPill: document.getElementById("connectionPill"),
-        connectionText: document.getElementById("connectionText"),
+        currentRoomCode:
+            document.getElementById("currentRoomCode"),
 
-        themeBtn: document.getElementById("themeBtn"),
-        themeIcon: document.getElementById("themeIcon")
+        copyRoomBtn:
+            document.getElementById("copyRoomBtn"),
+
+        copyRoomText:
+            document.getElementById("copyRoomText"),
+
+        connectionStatus:
+            document.getElementById("connectionStatus"),
+
+        locationStatus:
+            document.getElementById("locationStatus"),
+
+        membersCount:
+            document.getElementById("membersCount"),
+
+        membersList:
+            document.getElementById("membersList"),
+
+        switchRoomInput:
+            document.getElementById("switchRoomInput"),
+
+        switchRoomBtn:
+            document.getElementById("switchRoomBtn"),
+
+        map:
+            document.getElementById("map"),
+
+        myLocationBtn:
+            document.getElementById("myLocationBtn"),
+
+        centerMapBtn:
+            document.getElementById("centerMapBtn"),
+
+        connectionPill:
+            document.getElementById("connectionPill"),
+
+        connectionText:
+            document.getElementById("connectionText"),
+
+        themeBtn:
+            document.getElementById("themeBtn"),
+
+        themeIcon:
+            document.getElementById("themeIcon")
     };
 }
 
@@ -93,19 +144,27 @@ function cacheDom() {
    INIT
    ========================================================= */
 
-document.addEventListener("DOMContentLoaded", () => {
-    cacheDom();
+document.addEventListener(
+    "DOMContentLoaded",
+    () => {
 
-    loadSavedForm();
-    initTheme();
-    initMap();
-    initEvents();
-    renderSavedGroups();
+        cacheDom();
 
-    state.initialized = true;
+        loadSavedForm();
 
-    connectWebSocket();
-});
+        initTheme();
+
+        initMap();
+
+        initEvents();
+
+        renderSavedGroups();
+
+        state.initialized = true;
+
+        connectWebSocket();
+    }
+);
 
 
 /* =========================================================
@@ -113,34 +172,46 @@ document.addEventListener("DOMContentLoaded", () => {
    ========================================================= */
 
 function loadSavedForm() {
+
     if (els.userName) {
-        els.userName.value = state.userName;
+
+        els.userName.value =
+            state.userName;
     }
+
 
     if (els.roomCode) {
-        els.roomCode.value = state.roomCode;
+
+        els.roomCode.value =
+            state.roomCode;
     }
 
-    if (els.switchRoomInput && state.roomCode) {
-        els.switchRoomInput.value = state.roomCode;
+
+    if (
+        els.switchRoomInput &&
+        state.roomCode
+    ) {
+
+        els.switchRoomInput.value =
+            state.roomCode;
     }
 }
 
 
 function getName() {
-    const name = String(
+
+    return String(
         els.userName?.value ||
         state.userName ||
         ""
     )
         .trim()
         .slice(0, 30);
-
-    return name;
 }
 
 
 function normalizeRoomCode(value) {
+
     return String(value || "")
         .trim()
         .toUpperCase()
@@ -150,21 +221,70 @@ function normalizeRoomCode(value) {
 
 
 function saveUserName(name) {
+
     state.userName = name;
-    localStorage.setItem(STORAGE.USER_NAME, name);
+
+    localStorage.setItem(
+        STORAGE.USER_NAME,
+        name
+    );
 }
 
 
 function saveRoomCode(code) {
-    state.roomCode = code;
-    localStorage.setItem(STORAGE.ROOM_CODE, code);
+
+    code =
+        normalizeRoomCode(code);
+
+    state.roomCode =
+        code;
+
+    if (code) {
+
+        localStorage.setItem(
+            STORAGE.ROOM_CODE,
+            code
+        );
+
+    } else {
+
+        localStorage.removeItem(
+            STORAGE.ROOM_CODE
+        );
+    }
+}
+
+
+function clearRoomCode() {
+
+    state.roomCode = "";
+
+    state.pendingRoomCode = null;
+
+    state.pendingAction = null;
+
+    localStorage.removeItem(
+        STORAGE.ROOM_CODE
+    );
+
+    if (els.roomCode) {
+        els.roomCode.value = "";
+    }
+
+    if (els.switchRoomInput) {
+        els.switchRoomInput.value = "";
+    }
 }
 
 
 function saveUserId(id) {
-    if (!id) return;
 
-    state.userId = String(id).trim();
+    if (!id) {
+        return;
+    }
+
+    state.userId =
+        String(id).trim();
 
     localStorage.setItem(
         STORAGE.USER_ID,
@@ -184,30 +304,36 @@ function initEvents() {
         createRoom
     );
 
+
     els.joinRoomBtn?.addEventListener(
         "click",
         joinRoom
     );
+
 
     els.copyRoomBtn?.addEventListener(
         "click",
         copyRoomCode
     );
 
+
     els.switchRoomBtn?.addEventListener(
         "click",
         switchRoom
     );
+
 
     els.myLocationBtn?.addEventListener(
         "click",
         centerOnMyLocation
     );
 
+
     els.centerMapBtn?.addEventListener(
         "click",
         fitAllUsers
     );
+
 
     els.themeBtn?.addEventListener(
         "click",
@@ -218,6 +344,7 @@ function initEvents() {
     els.userName?.addEventListener(
         "input",
         () => {
+
             saveUserName(
                 getName()
             );
@@ -228,6 +355,7 @@ function initEvents() {
     els.roomCode?.addEventListener(
         "input",
         () => {
+
             els.roomCode.value =
                 normalizeRoomCode(
                     els.roomCode.value
@@ -239,6 +367,7 @@ function initEvents() {
     els.switchRoomInput?.addEventListener(
         "input",
         () => {
+
             els.switchRoomInput.value =
                 normalizeRoomCode(
                     els.switchRoomInput.value
@@ -250,8 +379,13 @@ function initEvents() {
     els.roomCode?.addEventListener(
         "keydown",
         event => {
-            if (event.key === "Enter") {
+
+            if (
+                event.key === "Enter"
+            ) {
+
                 event.preventDefault();
+
                 joinRoom();
             }
         }
@@ -261,8 +395,13 @@ function initEvents() {
     els.switchRoomInput?.addEventListener(
         "keydown",
         event => {
-            if (event.key === "Enter") {
+
+            if (
+                event.key === "Enter"
+            ) {
+
                 event.preventDefault();
+
                 switchRoom();
             }
         }
@@ -281,6 +420,7 @@ function getWebSocketURL() {
             ? "wss:"
             : "ws:";
 
+
     return (
         protocol +
         "//" +
@@ -298,16 +438,20 @@ function connectWebSocket() {
             (
                 state.ws.readyState ===
                 WebSocket.OPEN ||
+
                 state.ws.readyState ===
                 WebSocket.CONNECTING
             )
         )
     ) {
+
         return;
     }
 
 
-    state.connecting = true;
+    state.connecting =
+        true;
+
 
     updateConnection(
         "Ulanmoqda...",
@@ -317,12 +461,23 @@ function connectWebSocket() {
 
     let ws;
 
+
     try {
-        ws = new WebSocket(
-            getWebSocketURL()
-        );
+
+        ws =
+            new WebSocket(
+                getWebSocketURL()
+            );
+
     } catch (error) {
-        state.connecting = false;
+
+        console.error(
+            "WebSocket yaratishda xato:",
+            error
+        );
+
+        state.connecting =
+            false;
 
         updateConnection(
             "Offline",
@@ -335,17 +490,23 @@ function connectWebSocket() {
     }
 
 
-    state.ws = ws;
+    state.ws =
+        ws;
 
 
     ws.addEventListener(
         "open",
         () => {
 
-            state.connecting = false;
-            state.connected = true;
+            state.connecting =
+                false;
 
-            state.reconnectDelay = 1000;
+            state.connected =
+                true;
+
+            state.reconnectDelay =
+                1000;
+
 
             updateConnection(
                 "Online",
@@ -354,20 +515,66 @@ function connectWebSocket() {
 
 
             /*
-             * F5 bosilganda:
-             * saqlangan guruh avtomatik qayta ulanadi.
+             * Agar foydalanuvchi yangi amalni kutayotgan bo'lsa,
+             * avval shu amalni bajarish kerak.
              */
 
-            if (state.roomCode) {
+            if (
+                state.pendingAction ===
+                "create"
+            ) {
 
-                state.pendingAction = "join";
-                state.pendingRoomCode =
-                    state.roomCode;
+                state.pendingAction =
+                    null;
+
+                createRoom();
+
+                return;
+            }
+
+
+            if (
+                state.pendingAction ===
+                "join" &&
+                state.pendingRoomCode
+            ) {
+
+                const code =
+                    state.pendingRoomCode;
 
                 sendJoin(
-                    state.roomCode
+                    code
                 );
 
+                return;
+            }
+
+
+            /*
+             * Oddiy F5 holati.
+             *
+             * Oldingi room code mavjud bo'lsa,
+             * avtomatik qayta ulanadi.
+             */
+
+            if (
+                state.roomCode &&
+                state.roomCode !==
+                state.invalidRoomCode
+            ) {
+
+                const code =
+                    state.roomCode;
+
+                state.pendingAction =
+                    "join";
+
+                state.pendingRoomCode =
+                    code;
+
+                sendJoin(
+                    code
+                );
             }
         }
     );
@@ -379,16 +586,28 @@ function connectWebSocket() {
 
             let data;
 
+
             try {
+
                 data =
                     JSON.parse(
                         event.data
                     );
-            } catch {
+
+            } catch (error) {
+
+                console.warn(
+                    "Serverdan noto'g'ri JSON:",
+                    event.data
+                );
+
                 return;
             }
 
-            handleMessage(data);
+
+            handleMessage(
+                data
+            );
         }
     );
 
@@ -397,22 +616,28 @@ function connectWebSocket() {
         "close",
         () => {
 
-            state.connected = false;
-            state.connecting = false;
+            state.connected =
+                false;
+
+            state.connecting =
+                false;
+
 
             updateConnection(
                 "Offline",
                 false
             );
 
+
             if (
-                state.roomCode &&
-                !state.joining
+                state.roomCode
             ) {
+
                 updateRoomConnection(
                     "Qayta ulanmoqda..."
                 );
             }
+
 
             scheduleReconnect();
         }
@@ -421,9 +646,16 @@ function connectWebSocket() {
 
     ws.addEventListener(
         "error",
-        () => {
+        error => {
 
-            state.connected = false;
+            console.warn(
+                "WebSocket xatosi:",
+                error
+            );
+
+            state.connected =
+                false;
+
 
             updateConnection(
                 "Offline",
@@ -436,15 +668,20 @@ function connectWebSocket() {
 
 function scheduleReconnect() {
 
-    if (state.reconnectTimer) {
+    if (
+        state.reconnectTimer
+    ) {
+
         return;
     }
+
 
     state.reconnectTimer =
         setTimeout(
             () => {
 
-                state.reconnectTimer = null;
+                state.reconnectTimer =
+                    null;
 
                 connectWebSocket();
 
@@ -468,18 +705,28 @@ function send(data) {
         state.ws.readyState !==
         WebSocket.OPEN
     ) {
+
         return false;
     }
+
 
     try {
 
         state.ws.send(
-            JSON.stringify(data)
+            JSON.stringify(
+                data
+            )
         );
 
         return true;
 
-    } catch {
+    } catch (error) {
+
+        console.error(
+            "WebSocket send xatosi:",
+            error
+        );
+
         return false;
     }
 }
@@ -491,14 +738,34 @@ function send(data) {
 
 function handleMessage(data) {
 
-    if (!data || !data.type) {
+    if (
+        !data ||
+        !data.type
+    ) {
+
         return;
     }
 
 
-    if (data.type === "connected") {
+    console.log(
+        "SERVER:",
+        data
+    );
 
-        if (data.userId) {
+
+    /* -----------------------------------------------------
+       CONNECTED
+       ----------------------------------------------------- */
+
+    if (
+        data.type ===
+        "connected"
+    ) {
+
+        if (
+            data.userId
+        ) {
+
             saveUserId(
                 data.userId
             );
@@ -508,41 +775,80 @@ function handleMessage(data) {
     }
 
 
-    if (data.type === "room-created") {
+    /* -----------------------------------------------------
+       ROOM CREATED
+       ----------------------------------------------------- */
+
+    if (
+        data.type ===
+        "room-created"
+    ) {
 
         const code =
             normalizeRoomCode(
                 data.roomCode
             );
 
-        if (data.userId) {
+
+        if (
+            data.userId
+        ) {
+
             saveUserId(
                 data.userId
             );
         }
 
-        state.joining = false;
-        state.pendingAction = null;
-        state.pendingRoomCode = null;
 
-        saveRoomCode(code);
+        state.joining =
+            false;
+
+        state.pendingAction =
+            null;
+
+        state.pendingRoomCode =
+            null;
+
+        state.invalidRoomCode =
+            "";
+
+
+        saveRoomCode(
+            code
+        );
+
 
         addSavedGroup(
             code,
             getName()
         );
 
-        showRoom(code);
+
+        showRoom(
+            code
+        );
+
 
         startLocation();
 
         clearErrors();
 
+        setButtonLoading(
+            false
+        );
+
         return;
     }
 
 
-    if (data.type === "joined-room") {
+    /* -----------------------------------------------------
+       JOINED ROOM
+       ----------------------------------------------------- */
+
+    if (
+        data.type ===
+        "joined-room"
+    ) {
 
         const code =
             normalizeRoomCode(
@@ -552,41 +858,73 @@ function handleMessage(data) {
             );
 
 
-        if (data.userId) {
+        if (
+            data.userId
+        ) {
+
             saveUserId(
                 data.userId
             );
         }
 
 
-        state.joining = false;
-        state.pendingAction = null;
-        state.pendingRoomCode = null;
+        state.joining =
+            false;
+
+        state.pendingAction =
+            null;
+
+        state.pendingRoomCode =
+            null;
+
+        state.invalidRoomCode =
+            "";
 
 
-        saveRoomCode(code);
+        saveRoomCode(
+            code
+        );
+
 
         addSavedGroup(
             code,
             getName()
         );
 
-        showRoom(code);
+
+        showRoom(
+            code
+        );
+
 
         startLocation();
 
         clearErrors();
 
+        setButtonLoading(
+            false
+        );
+
         return;
     }
 
 
-    if (data.type === "users") {
+    /* -----------------------------------------------------
+       USERS
+       ----------------------------------------------------- */
+
+    if (
+        data.type ===
+        "users"
+    ) {
 
         state.users =
-            Array.isArray(data.users)
+            Array.isArray(
+                data.users
+            )
                 ? data.users
                 : [];
+
 
         renderUsers(
             state.users
@@ -596,9 +934,23 @@ function handleMessage(data) {
     }
 
 
-    if (data.type === "left-room") {
+    /* -----------------------------------------------------
+       LEFT ROOM
+       ----------------------------------------------------- */
 
-        state.joining = false;
+    if (
+        data.type ===
+        "left-room"
+    ) {
+
+        state.joining =
+            false;
+
+        state.pendingAction =
+            null;
+
+        state.pendingRoomCode =
+            null;
 
         showSetup();
 
@@ -606,14 +958,114 @@ function handleMessage(data) {
     }
 
 
-    if (data.type === "error") {
+    /* -----------------------------------------------------
+       SERVER ERROR
+       ----------------------------------------------------- */
 
-        state.joining = false;
+    if (
+        data.type ===
+        "error"
+    ) {
+
+        state.joining =
+            false;
+
+        state.pendingAction =
+            null;
+
+
+        const message =
+            String(
+                data.message ||
+                "Xatolik yuz berdi."
+            );
+
+
+        /*
+         * Eng muhim tuzatish:
+         *
+         * Agar server:
+         * "Bunday guruh topilmadi"
+         * desa, eski room code'ni
+         * avtomatik qayta yubormaymiz.
+         */
+
+        const notFound =
+            message
+                .toLowerCase()
+                .includes(
+                    "bunday guruh topilmadi"
+                ) ||
+            message
+                .toLowerCase()
+                .includes(
+                    "guruh topilmadi"
+                ) ||
+            message
+                .toLowerCase()
+                .includes(
+                    "room not found"
+                );
+
+
+        if (
+            notFound
+        ) {
+
+            const badCode =
+                normalizeRoomCode(
+                    state.pendingRoomCode ||
+                    state.roomCode
+                );
+
+
+            state.invalidRoomCode =
+                badCode;
+
+
+            /*
+             * Eski avtomatik joinni to'xtatamiz.
+             */
+
+            state.pendingRoomCode =
+                null;
+
+            state.pendingAction =
+                null;
+
+
+            /*
+             * Room code localStorage'dan olib tashlanadi.
+             *
+             * Lekin saved groups o'chirilmaydi.
+             */
+
+            clearRoomCode();
+
+
+            showSetup();
+
+
+            showError(
+                `"${badCode}" guruh topilmadi. Yangi guruh yarating yoki boshqa guruh kodini kiriting.`
+            );
+
+
+            setButtonLoading(
+                false
+            );
+
+
+            renderSavedGroups();
+
+            return;
+        }
+
 
         showError(
-            data.message ||
-            "Xatolik yuz berdi."
+            message
         );
+
 
         setButtonLoading(
             false
@@ -632,6 +1084,7 @@ function createRoom() {
 
     clearErrors();
 
+
     const name =
         getName();
 
@@ -642,28 +1095,39 @@ function createRoom() {
             "Iltimos, ismingizni kiriting."
         );
 
+
         els.userName?.focus();
 
         return;
     }
 
 
-    saveUserName(name);
+    saveUserName(
+        name
+    );
 
 
-    if (!state.connected) {
+    if (
+        !state.connected
+    ) {
 
         state.pendingAction =
             "create";
+
+        state.pendingRoomCode =
+            null;
+
 
         setButtonLoading(
             true,
             els.createRoomBtn
         );
 
+
         showError(
             "Serverga ulanmoqda. Biroz kuting..."
         );
+
 
         connectWebSocket();
 
@@ -679,10 +1143,14 @@ function createRoom() {
 
     const success =
         send({
-            type: "create-room",
+            type:
+                "create-room",
+
             name,
+
             userId:
-                state.userId || null
+                state.userId ||
+                null
         });
 
 
@@ -691,6 +1159,7 @@ function createRoom() {
         setButtonLoading(
             false
         );
+
 
         showError(
             "Server bilan aloqa yo‘q."
@@ -709,8 +1178,10 @@ function joinRoom() {
 
     clearErrors();
 
+
     const name =
         getName();
+
 
     const code =
         normalizeRoomCode(
@@ -724,17 +1195,23 @@ function joinRoom() {
             "Iltimos, ismingizni kiriting."
         );
 
+
         els.userName?.focus();
 
         return;
     }
 
 
-    if (!/^[A-Z0-9]{6}$/.test(code)) {
+    if (
+        !/^[A-Z0-9]{6}$/.test(
+            code
+        )
+    ) {
 
         showError(
             "Guruh kodi 6 ta belgidan iborat bo‘lishi kerak."
         );
+
 
         els.roomCode?.focus();
 
@@ -742,11 +1219,38 @@ function joinRoom() {
     }
 
 
-    saveUserName(name);
-    saveRoomCode(code);
+    saveUserName(
+        name
+    );
 
 
-    if (!state.connected) {
+    /*
+     * Foydalanuvchi qo'lda yangi kod kiritgan.
+     * Shuning uchun oldingi invalid code
+     * blokini olib tashlaymiz.
+     */
+
+    state.invalidRoomCode =
+        "";
+
+
+    if (
+        state.roomCode !== code
+    ) {
+
+        state.pendingRoomCode =
+            code;
+    }
+
+
+    saveRoomCode(
+        code
+    );
+
+
+    if (
+        !state.connected
+    ) {
 
         state.pendingAction =
             "join";
@@ -754,14 +1258,17 @@ function joinRoom() {
         state.pendingRoomCode =
             code;
 
+
         setButtonLoading(
             true,
             els.joinRoomBtn
         );
 
+
         showError(
             "Serverga ulanmoqda. Biroz kuting..."
         );
+
 
         connectWebSocket();
 
@@ -769,17 +1276,26 @@ function joinRoom() {
     }
 
 
-    sendJoin(code);
+    sendJoin(
+        code
+    );
 }
 
 
 function sendJoin(code) {
 
     code =
-        normalizeRoomCode(code);
+        normalizeRoomCode(
+            code
+        );
 
 
-    if (!/^[A-Z0-9]{6}$/.test(code)) {
+    if (
+        !/^[A-Z0-9]{6}$/.test(
+            code
+        )
+    ) {
+
         return;
     }
 
@@ -789,14 +1305,39 @@ function sendJoin(code) {
 
 
     if (!name) {
+
         showError(
             "Iltimos, ismingizni kiriting."
         );
+
         return;
     }
 
 
-    state.joining = true;
+    /*
+     * Agar shu kod server tomonidan
+     * oldin topilmagan bo'lsa,
+     * avtomatik qayta yubormaymiz.
+     *
+     * Faqat foydalanuvchi qo'lda yana
+     * Join bossa qayta urinadi.
+     */
+
+    if (
+        code ===
+        state.invalidRoomCode &&
+        state.pendingAction ===
+        null &&
+        state.roomCode === ""
+    ) {
+
+        return;
+    }
+
+
+    state.joining =
+        true;
+
 
     state.pendingAction =
         "join";
@@ -813,21 +1354,30 @@ function sendJoin(code) {
 
     const success =
         send({
-            type: "join-room",
-            roomCode: code,
+            type:
+                "join-room",
+
+            roomCode:
+                code,
+
             name,
+
             userId:
-                state.userId || null
+                state.userId ||
+                null
         });
 
 
     if (!success) {
 
-        state.joining = false;
+        state.joining =
+            false;
+
 
         setButtonLoading(
             false
         );
+
 
         showError(
             "Server bilan aloqa yo‘q."
@@ -844,13 +1394,18 @@ function switchRoom() {
 
     clearErrors();
 
+
     const code =
         normalizeRoomCode(
             els.switchRoomInput?.value
         );
 
 
-    if (!/^[A-Z0-9]{6}$/.test(code)) {
+    if (
+        !/^[A-Z0-9]{6}$/.test(
+            code
+        )
+    ) {
 
         showError(
             "Guruh kodi noto‘g‘ri."
@@ -874,14 +1429,33 @@ function switchRoom() {
     }
 
 
-    saveUserName(name);
-    saveRoomCode(code);
+    saveUserName(
+        name
+    );
+
+
+    state.invalidRoomCode =
+        "";
 
 
     state.pendingRoomCode =
         code;
 
-    state.joining = true;
+    state.pendingAction =
+        "join";
+
+    state.joining =
+        true;
+
+
+    /*
+     * Avvalgi room code saqlanib qolmasligi
+     * uchun hozirgi kodni ham yangilaymiz.
+     */
+
+    saveRoomCode(
+        code
+    );
 
 
     if (
@@ -889,16 +1463,23 @@ function switchRoom() {
     ) {
 
         send({
-            type: "join-room",
-            roomCode: code,
+            type:
+                "join-room",
+
+            roomCode:
+                code,
+
             name,
+
             userId:
-                state.userId || null
+                state.userId ||
+                null
         });
 
     } else {
 
         connectWebSocket();
+
 
         showError(
             "Serverga ulanmoqda..."
@@ -914,16 +1495,24 @@ function switchRoom() {
 function showRoom(code) {
 
     code =
-        normalizeRoomCode(code);
+        normalizeRoomCode(
+            code
+        );
 
 
-    if (els.currentRoomCode) {
+    if (
+        els.currentRoomCode
+    ) {
+
         els.currentRoomCode.textContent =
             code;
     }
 
 
-    if (els.setupCard) {
+    if (
+        els.setupCard
+    ) {
+
         els.setupCard.classList.add(
             "hidden"
         );
@@ -933,7 +1522,9 @@ function showRoom(code) {
     }
 
 
-    if (els.roomCard) {
+    if (
+        els.roomCard
+    ) {
 
         els.roomCard.classList.remove(
             "hidden"
@@ -974,7 +1565,9 @@ function showRoom(code) {
 
 function showSetup() {
 
-    if (els.roomCard) {
+    if (
+        els.roomCard
+    ) {
 
         els.roomCard.classList.add(
             "hidden"
@@ -985,7 +1578,9 @@ function showSetup() {
     }
 
 
-    if (els.setupCard) {
+    if (
+        els.setupCard
+    ) {
 
         els.setupCard.classList.remove(
             "hidden"
@@ -996,7 +1591,9 @@ function showSetup() {
     }
 
 
-    setButtonLoading(false);
+    setButtonLoading(
+        false
+    );
 }
 
 
@@ -1007,7 +1604,9 @@ function showSetup() {
 function showError(message) {
 
     const text =
-        String(message || "")
+        String(
+            message || ""
+        )
             .trim();
 
 
@@ -1025,17 +1624,27 @@ function showError(message) {
     }
 
 
-    if (els.setupError) {
-        els.setupError.textContent = "";
+    if (
+        els.setupError
+    ) {
+
+        els.setupError.textContent =
+            "";
     }
 
-    if (els.roomError) {
-        els.roomError.textContent = "";
+
+    if (
+        els.roomError
+    ) {
+
+        els.roomError.textContent =
+            "";
     }
 
 
     target.textContent =
         text;
+
 
     target.classList.add(
         "show"
@@ -1048,18 +1657,24 @@ function clearErrors() {
     [
         els.setupError,
         els.roomError
-    ].forEach(
-        element => {
+    ]
+        .forEach(
+            element => {
 
-            if (!element) return;
+                if (!element) {
+                    return;
+                }
 
-            element.textContent = "";
 
-            element.classList.remove(
-                "show"
-            );
-        }
-    );
+                element.textContent =
+                    "";
+
+
+                element.classList.remove(
+                    "show"
+                );
+            }
+        );
 }
 
 
@@ -1085,7 +1700,9 @@ function setButtonLoading(
     buttons.forEach(
         button => {
 
-            if (!button) return;
+            if (!button) {
+                return;
+            }
 
 
             if (loading) {
@@ -1093,13 +1710,15 @@ function setButtonLoading(
                 if (
                     !button.dataset.originalText
                 ) {
+
                     button.dataset.originalText =
-                        button.innerText;
+                        button.innerHTML;
                 }
 
 
                 button.disabled =
                     true;
+
 
                 button.classList.add(
                     "loading"
@@ -1133,6 +1752,7 @@ function setButtonLoading(
                 button.disabled =
                     false;
 
+
                 button.classList.remove(
                     "loading"
                 );
@@ -1144,6 +1764,7 @@ function setButtonLoading(
 
                     button.innerHTML =
                         button.dataset.originalText;
+
 
                     delete button.dataset.originalText;
                 }
@@ -1162,18 +1783,24 @@ function updateConnection(
     online
 ) {
 
-    if (els.connectionText) {
+    if (
+        els.connectionText
+    ) {
+
         els.connectionText.textContent =
             text;
     }
 
 
-    if (els.connectionPill) {
+    if (
+        els.connectionPill
+    ) {
 
         els.connectionPill.classList.toggle(
             "online",
             !!online
         );
+
 
         els.connectionPill.classList.toggle(
             "offline",
@@ -1188,9 +1815,13 @@ function updateConnection(
 }
 
 
-function updateRoomConnection(text) {
+function updateRoomConnection(
+    text
+) {
 
-    if (els.connectionStatus) {
+    if (
+        els.connectionStatus
+    ) {
 
         els.connectionStatus.textContent =
             text;
@@ -1208,6 +1839,7 @@ function initMap() {
         !els.map ||
         typeof L === "undefined"
     ) {
+
         return;
     }
 
@@ -1216,26 +1848,35 @@ function initMap() {
         L.map(
             els.map,
             {
-                zoomControl: true,
-                attributionControl: true
+                zoomControl:
+                    true,
+
+                attributionControl:
+                    true
             }
         )
-        .setView(
-            [41.3111, 69.2797],
-            12
-        );
+            .setView(
+                [
+                    41.3111,
+                    69.2797
+                ],
+                12
+            );
 
 
     L.tileLayer(
         "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         {
-            maxZoom: 19,
+            maxZoom:
+                19,
+
             attribution:
-                '&copy; OpenStreetMap contributors'
+                "&copy; OpenStreetMap contributors"
         }
-    ).addTo(
-        state.map
-    );
+    )
+        .addTo(
+            state.map
+        );
 }
 
 
@@ -1260,6 +1901,7 @@ function startLocation() {
     if (
         state.locationWatchId !== null
     ) {
+
         return;
     }
 
@@ -1276,11 +1918,14 @@ function startLocation() {
                 state.currentPosition =
                     position;
 
+
                 const lat =
                     position.coords.latitude;
 
+
                 const lng =
                     position.coords.longitude;
+
 
                 const accuracy =
                     position.coords.accuracy;
@@ -1299,9 +1944,13 @@ function startLocation() {
 
 
                 send({
-                    type: "location",
+                    type:
+                        "location",
+
                     lat,
+
                     lng,
+
                     accuracy
                 });
 
@@ -1309,31 +1958,38 @@ function startLocation() {
                 fitMapIfNeeded();
             },
 
+
             error => {
 
                 let message =
                     "GPS xatosi";
 
+
                 if (
                     error.code ===
                     error.PERMISSION_DENIED
                 ) {
+
                     message =
                         "GPS ruxsati berilmadi";
                 }
+
 
                 if (
                     error.code ===
                     error.POSITION_UNAVAILABLE
                 ) {
+
                     message =
                         "Joylashuv topilmadi";
                 }
+
 
                 if (
                     error.code ===
                     error.TIMEOUT
                 ) {
+
                     message =
                         "GPS kutish vaqti tugadi";
                 }
@@ -1344,20 +2000,29 @@ function startLocation() {
                 );
             },
 
+
             {
-                enableHighAccuracy: true,
-                maximumAge: 5000,
-                timeout: 15000
+                enableHighAccuracy:
+                    true,
+
+                maximumAge:
+                    5000,
+
+                timeout:
+                    15000
             }
         );
 }
 
 
-function updateLocationStatus(text) {
+function updateLocationStatus(
+    text
+) {
 
     if (
         els.locationStatus
     ) {
+
         els.locationStatus.textContent =
             text;
     }
@@ -1386,6 +2051,7 @@ function createMarkerIcon(
 
 
     return L.divIcon({
+
         className:
             "live-gps-marker-wrapper",
 
@@ -1424,6 +2090,7 @@ function updateMyMarker(
     if (
         !state.map
     ) {
+
         return;
     }
 
@@ -1434,26 +2101,33 @@ function updateMyMarker(
 
 
     let marker =
-        state.markers.get(id);
+        state.markers.get(
+            id
+        );
 
 
     if (!marker) {
 
         marker =
             L.marker(
-                [lat, lng],
+                [
+                    lat,
+                    lng
+                ],
                 {
                     icon:
                         createMarkerIcon(
                             true,
                             true
                         ),
-                    zIndexOffset: 1000
+
+                    zIndexOffset:
+                        1000
                 }
             )
-            .addTo(
-                state.map
-            );
+                .addTo(
+                    state.map
+                );
 
 
         state.markers.set(
@@ -1464,7 +2138,10 @@ function updateMyMarker(
 
 
     marker.setLatLng(
-        [lat, lng]
+        [
+            lat,
+            lng
+        ]
     );
 
 
@@ -1489,16 +2166,24 @@ function updateMyMarker(
 
             circle =
                 L.circle(
-                    [lat, lng],
+                    [
+                        lat,
+                        lng
+                    ],
                     {
-                        radius: accuracy,
-                        weight: 1,
-                        fillOpacity: 0.08
+                        radius:
+                            accuracy,
+
+                        weight:
+                            1,
+
+                        fillOpacity:
+                            0.08
                     }
                 )
-                .addTo(
-                    state.map
-                );
+                    .addTo(
+                        state.map
+                    );
 
 
             state.accuracyCircles.set(
@@ -1509,8 +2194,12 @@ function updateMyMarker(
         } else {
 
             circle.setLatLng(
-                [lat, lng]
+                [
+                    lat,
+                    lng
+                ]
             );
+
 
             circle.setRadius(
                 accuracy
@@ -1524,14 +2213,23 @@ function updateMyMarker(
    USERS
    ========================================================= */
 
-function renderUsers(users) {
+function renderUsers(
+    users
+) {
 
-    if (!Array.isArray(users)) {
+    if (
+        !Array.isArray(
+            users
+        )
+    ) {
+
         users = [];
     }
 
 
-    if (els.membersCount) {
+    if (
+        els.membersCount
+    ) {
 
         const onlineCount =
             users.filter(
@@ -1551,7 +2249,9 @@ function renderUsers(users) {
         els.membersList
     ) {
 
-        if (!users.length) {
+        if (
+            !users.length
+        ) {
 
             els.membersList.innerHTML = `
                 <div class="empty-members">
@@ -1577,11 +2277,13 @@ function renderUsers(users) {
 }
 
 
-function renderMember(user) {
+function renderMember(
+    user
+) {
 
     const isMe =
-        user.id ===
-        state.userId;
+        String(user.id) ===
+        String(state.userId);
 
 
     const online =
@@ -1607,6 +2309,21 @@ function renderMember(user) {
             : "offline";
 
 
+    const lat =
+        Number(user.lat);
+
+
+    const lng =
+        Number(user.lng);
+
+
+    const locationText =
+        Number.isFinite(lat) &&
+        Number.isFinite(lng)
+            ? `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+            : "Joylashuv mavjud emas";
+
+
     return `
         <div
             class="member-item"
@@ -1617,7 +2334,10 @@ function renderMember(user) {
 
             <div class="member-avatar">
                 ${escapeHTML(
-                    (user.name || "N")
+                    (
+                        user.name ||
+                        "N"
+                    )
                         .charAt(0)
                         .toUpperCase()
                 )}
@@ -1635,16 +2355,7 @@ function renderMember(user) {
                 </strong>
 
                 <small>
-                    ${
-                        Number.isFinite(
-                            Number(user.lat)
-                        ) &&
-                        Number.isFinite(
-                            Number(user.lng)
-                        )
-                            ? `${Number(user.lat).toFixed(5)}, ${Number(user.lng).toFixed(5)}`
-                            : "Joylashuv mavjud emas"
-                    }
+                    ${locationText}
                 </small>
 
             </div>
@@ -1659,11 +2370,14 @@ function renderMember(user) {
 }
 
 
-function updateMapMarkers(users) {
+function updateMapMarkers(
+    users
+) {
 
     if (
         !state.map
     ) {
+
         return;
     }
 
@@ -1678,14 +2392,22 @@ function updateMapMarkers(users) {
             const lat =
                 Number(user.lat);
 
+
             const lng =
                 Number(user.lng);
 
+
+            /*
+             * Offline foydalanuvchining oxirgi
+             * koordinatasi bo'lsa ham marker
+             * xaritada qoladi.
+             */
 
             if (
                 !Number.isFinite(lat) ||
                 !Number.isFinite(lng)
             ) {
+
                 return;
             }
 
@@ -1694,42 +2416,53 @@ function updateMapMarkers(users) {
                 String(user.id);
 
 
-            activeIds.add(id);
+            activeIds.add(
+                id
+            );
 
 
             const isMe =
                 id ===
-                String(state.userId);
+                String(
+                    state.userId
+                );
 
 
             let marker =
-                state.markers.get(id);
+                state.markers.get(
+                    id
+                );
 
 
             if (!marker) {
 
                 marker =
                     L.marker(
-                        [lat, lng],
+                        [
+                            lat,
+                            lng
+                        ],
                         {
                             icon:
                                 createMarkerIcon(
                                     !!user.online,
                                     isMe
                                 ),
+
                             opacity:
                                 user.online
                                     ? 1
                                     : 0.55,
+
                             zIndexOffset:
                                 isMe
                                     ? 1000
                                     : 0
                         }
                     )
-                    .addTo(
-                        state.map
-                    );
+                        .addTo(
+                            state.map
+                        );
 
 
                 state.markers.set(
@@ -1740,7 +2473,10 @@ function updateMapMarkers(users) {
             } else {
 
                 marker.setLatLng(
-                    [lat, lng]
+                    [
+                        lat,
+                        lng
+                    ]
                 );
 
 
@@ -1777,12 +2513,12 @@ function updateMapMarkers(users) {
 
             marker.bindPopup(
                 `
-                <strong>${title}</strong>
-                <br>
-                ${status}
-                <br>
-                ${lat.toFixed(5)},
-                ${lng.toFixed(5)}
+                    <strong>${title}</strong>
+                    <br>
+                    ${status}
+                    <br>
+                    ${lat.toFixed(5)},
+                    ${lng.toFixed(5)}
                 `
             );
         }
@@ -1790,32 +2526,44 @@ function updateMapMarkers(users) {
 
 
     /*
-     * Eski markerlarni olib tashlaymiz.
-     * Lekin offline foydalanuvchi hali users ichida bo'lsa,
-     * uning oxirgi joylashuvi saqlanadi.
+     * Faqat serverdan butunlay yo'qolgan
+     * user markerini o'chiramiz.
+     *
+     * Offline user users ichida bo'lsa,
+     * marker saqlanadi.
      */
 
     for (
-        const [id, marker]
+        const [
+            id,
+            marker
+        ]
         of state.markers
     ) {
 
         if (
             id ===
-            String(state.userId)
+            String(
+                state.userId
+            )
         ) {
+
             continue;
         }
 
 
         if (
-            !activeIds.has(id)
+            !activeIds.has(
+                id
+            )
         ) {
 
             try {
+
                 state.map.removeLayer(
                     marker
                 );
+
             } catch {}
 
 
@@ -1836,6 +2584,7 @@ function centerOnMyLocation() {
     if (
         !state.map
     ) {
+
         return;
     }
 
@@ -1847,15 +2596,20 @@ function centerOnMyLocation() {
         const lat =
             state.currentPosition.coords.latitude;
 
+
         const lng =
             state.currentPosition.coords.longitude;
 
 
         state.map.setView(
-            [lat, lng],
+            [
+                lat,
+                lng
+            ],
             17,
             {
-                animate: true
+                animate:
+                    true
             }
         );
 
@@ -1866,8 +2620,8 @@ function centerOnMyLocation() {
     const me =
         state.users.find(
             user =>
-                user.id ===
-                state.userId
+                String(user.id) ===
+                String(state.userId)
         );
 
 
@@ -1888,7 +2642,8 @@ function centerOnMyLocation() {
             ],
             17,
             {
-                animate: true
+                animate:
+                    true
             }
         );
     }
@@ -1900,11 +2655,13 @@ function fitAllUsers() {
     if (
         !state.map
     ) {
+
         return;
     }
 
 
-    const points = [];
+    const points =
+        [];
 
 
     state.users.forEach(
@@ -1912,6 +2669,7 @@ function fitAllUsers() {
 
             const lat =
                 Number(user.lat);
+
 
             const lng =
                 Number(user.lng);
@@ -1923,7 +2681,10 @@ function fitAllUsers() {
             ) {
 
                 points.push(
-                    [lat, lng]
+                    [
+                        lat,
+                        lng
+                    ]
                 );
             }
         }
@@ -1934,17 +2695,24 @@ function fitAllUsers() {
         state.currentPosition
     ) {
 
-        points.push([
-            state.currentPosition.coords.latitude,
-            state.currentPosition.coords.longitude
-        ]);
+        points.push(
+            [
+                state.currentPosition.coords.latitude,
+                state.currentPosition.coords.longitude
+            ]
+        );
     }
 
 
-    if (!points.length) {
+    if (
+        !points.length
+    ) {
 
         state.map.setView(
-            [41.3111, 69.2797],
+            [
+                41.3111,
+                69.2797
+            ],
             12
         );
 
@@ -1960,7 +2728,8 @@ function fitAllUsers() {
             points[0],
             16,
             {
-                animate: true
+                animate:
+                    true
             }
         );
 
@@ -1977,12 +2746,17 @@ function fitAllUsers() {
     state.map.fitBounds(
         bounds,
         {
-            padding: [
-                50,
-                50
-            ],
-            maxZoom: 16,
-            animate: true
+            padding:
+                [
+                    50,
+                    50
+                ],
+
+            maxZoom:
+                16,
+
+            animate:
+                true
         }
     );
 }
@@ -1993,13 +2767,16 @@ function fitMapIfNeeded() {
     if (
         !state.map
     ) {
+
         return;
     }
 
 
     if (
-        state.map.getZoom() < 5
+        state.map.getZoom() <
+        5
     ) {
+
         centerOnMyLocation();
     }
 }
@@ -2018,6 +2795,7 @@ async function copyRoomCode() {
 
 
     if (!code) {
+
         return;
     }
 
@@ -2028,6 +2806,7 @@ async function copyRoomCode() {
             code
         );
 
+
         showCopySuccess();
 
     } catch {
@@ -2036,12 +2815,15 @@ async function copyRoomCode() {
             code
         );
 
+
         showCopySuccess();
     }
 }
 
 
-function fallbackCopy(text) {
+function fallbackCopy(
+    text
+) {
 
     const input =
         document.createElement(
@@ -2056,6 +2838,7 @@ function fallbackCopy(text) {
     input.style.position =
         "fixed";
 
+
     input.style.opacity =
         "0";
 
@@ -2069,9 +2852,11 @@ function fallbackCopy(text) {
 
 
     try {
+
         document.execCommand(
             "copy"
         );
+
     } catch {}
 
 
@@ -2081,7 +2866,10 @@ function fallbackCopy(text) {
 
 function showCopySuccess() {
 
-    if (!els.copyRoomText) {
+    if (
+        !els.copyRoomText
+    ) {
+
         return;
     }
 
@@ -2100,6 +2888,7 @@ function showCopySuccess() {
             if (
                 els.copyRoomText
             ) {
+
                 els.copyRoomText.textContent =
                     oldText;
             }
@@ -2125,6 +2914,7 @@ function getSavedGroups() {
 
 
         if (!value) {
+
             return [];
         }
 
@@ -2136,8 +2926,11 @@ function getSavedGroups() {
 
 
         if (
-            !Array.isArray(groups)
+            !Array.isArray(
+                groups
+            )
         ) {
+
             return [];
         }
 
@@ -2150,7 +2943,10 @@ function getSavedGroups() {
                         group.code
                     )
             )
-            .slice(0, 10);
+            .slice(
+                0,
+                10
+            );
 
     } catch {
 
@@ -2159,12 +2955,17 @@ function getSavedGroups() {
 }
 
 
-function saveSavedGroups(groups) {
+function saveSavedGroups(
+    groups
+) {
 
     localStorage.setItem(
         STORAGE.SAVED_GROUPS,
         JSON.stringify(
-            groups.slice(0, 10)
+            groups.slice(
+                0,
+                10
+            )
         )
     );
 }
@@ -2176,12 +2977,17 @@ function addSavedGroup(
 ) {
 
     code =
-        normalizeRoomCode(code);
+        normalizeRoomCode(
+            code
+        );
 
 
     if (
-        !/^[A-Z0-9]{6}$/.test(code)
+        !/^[A-Z0-9]{6}$/.test(
+            code
+        )
     ) {
+
         return;
     }
 
@@ -2193,18 +2999,24 @@ function addSavedGroup(
     groups =
         groups.filter(
             group =>
-                group.code !== code
+                group.code !==
+                code
         );
 
 
     groups.unshift({
+
         code,
+
         name:
             String(
                 name || ""
             )
                 .trim()
-                .slice(0, 30),
+                .slice(
+                    0,
+                    30
+                ),
 
         savedAt:
             Date.now()
@@ -2231,7 +3043,8 @@ function removeSavedGroup(
     groups =
         groups.filter(
             group =>
-                group.code !== code
+                group.code !==
+                code
         );
 
 
@@ -2252,7 +3065,10 @@ function renderSavedGroups() {
         );
 
 
-    if (existing) {
+    if (
+        existing
+    ) {
+
         existing.remove();
     }
 
@@ -2265,6 +3081,7 @@ function renderSavedGroups() {
         !groups.length ||
         !els.setupCard
     ) {
+
         return;
     }
 
@@ -2285,65 +3102,86 @@ function renderSavedGroups() {
 
     section.innerHTML = `
         <div class="saved-groups-head">
+
             <div>
-                <strong>Saqlangan guruhlar</strong>
-                <span>Oldingi guruhlaringiz</span>
+                <strong>
+                    Saqlangan guruhlar
+                </strong>
+
+                <span>
+                    Oldingi guruhlaringiz
+                </span>
             </div>
 
             <span class="saved-groups-count">
                 ${groups.length}
             </span>
+
         </div>
 
         <div class="saved-groups-list">
-            ${groups.map(group => `
-                <div
-                    class="saved-group-item"
-                    data-code="${escapeHTML(group.code)}"
-                >
 
-                    <button
-                        type="button"
-                        class="saved-group-open"
-                        data-open-code="${escapeHTML(group.code)}"
-                    >
+            ${groups
+                .map(
+                    group => `
+                        <div
+                            class="saved-group-item"
+                            data-code="${escapeHTML(
+                                group.code
+                            )}"
+                        >
 
-                        <span class="saved-group-icon">
-                            ⌖
-                        </span>
+                            <button
+                                type="button"
+                                class="saved-group-open"
+                                data-open-code="${escapeHTML(
+                                    group.code
+                                )}"
+                            >
 
-                        <span class="saved-group-main">
+                                <span class="saved-group-icon">
+                                    ⌖
+                                </span>
 
-                            <strong>
-                                ${escapeHTML(group.code)}
-                            </strong>
+                                <span class="saved-group-main">
 
-                            <small>
-                                ${escapeHTML(
-                                    group.name ||
-                                    "Saqlangan guruh"
-                                )}
-                            </small>
+                                    <strong>
+                                        ${escapeHTML(
+                                            group.code
+                                        )}
+                                    </strong>
 
-                        </span>
+                                    <small>
+                                        ${escapeHTML(
+                                            group.name ||
+                                            "Saqlangan guruh"
+                                        )}
+                                    </small>
 
-                        <span class="saved-group-arrow">
-                            →
-                        </span>
+                                </span>
 
-                    </button>
+                                <span class="saved-group-arrow">
+                                    →
+                                </span>
 
-                    <button
-                        type="button"
-                        class="saved-group-delete"
-                        title="O'chirish"
-                        data-delete-code="${escapeHTML(group.code)}"
-                    >
-                        ×
-                    </button>
+                            </button>
 
-                </div>
-            `).join("")}
+                            <button
+                                type="button"
+                                class="saved-group-delete"
+                                title="O'chirish"
+                                data-delete-code="${escapeHTML(
+                                    group.code
+                                )}"
+                            >
+                                ×
+                            </button>
+
+                        </div>
+                    `
+                )
+                .join("")}
+
         </div>
     `;
 
@@ -2355,10 +3193,13 @@ function renderSavedGroups() {
 
 
     if (content) {
+
         content.after(
             section
         );
+
     } else {
+
         els.setupCard.appendChild(
             section
         );
@@ -2379,12 +3220,25 @@ function renderSavedGroups() {
                         const code =
                             button.dataset.openCode;
 
+
                         if (
                             els.roomCode
                         ) {
+
                             els.roomCode.value =
                                 code;
                         }
+
+
+                        /*
+                         * Faqat shu guruhni qo'lda
+                         * tanlagani uchun invalid
+                         * blockni olib tashlaymiz.
+                         */
+
+                        state.invalidRoomCode =
+                            "";
+
 
                         joinRoom();
                     }
@@ -2405,6 +3259,7 @@ function renderSavedGroups() {
                     event => {
 
                         event.stopPropagation();
+
 
                         removeSavedGroup(
                             button.dataset.deleteCode
@@ -2485,7 +3340,10 @@ function toggleTheme() {
 
 function updateThemeButton() {
 
-    if (!els.themeIcon) {
+    if (
+        !els.themeIcon
+    ) {
+
         return;
     }
 
@@ -2505,9 +3363,13 @@ function updateThemeButton() {
    HELPERS
    ========================================================= */
 
-function escapeHTML(value) {
+function escapeHTML(
+    value
+) {
 
-    return String(value ?? "")
+    return String(
+        value ?? ""
+    )
         .replace(
             /&/g,
             "&amp;"
@@ -2560,7 +3422,9 @@ document.addEventListener(
 
                 setTimeout(
                     () => {
+
                         state.map.invalidateSize();
+
                     },
                     100
                 );
@@ -2575,17 +3439,20 @@ document.addEventListener(
    ========================================================= */
 
 /*
- * Bu yerda localStorage o'chirilmaydi.
+ * localStorage o'chirilmaydi.
  *
- * F5 bosilganda:
+ * F5:
  *
- * 1. Browser WebSocketni yopadi.
+ * 1. WebSocket yopiladi.
  * 2. Room code localStorage'da qoladi.
  * 3. Sahifa qayta ochiladi.
- * 4. WebSocket qayta ulanadi.
- * 5. Saqlangan room code bilan join-room yuboriladi.
+ * 4. WebSocket ulanadi.
+ * 5. Room code bilan qayta join qilinadi.
  *
- * Shuning uchun F5 guruhni o'chirmaydi.
+ * Agar serverda room mavjud bo'lmasa,
+ * xatolikdan keyin eski room code
+ * avtomatik tozalanadi va cheksiz
+ * reconnect/join bo'lmaydi.
  */
 
 
@@ -2603,7 +3470,9 @@ window.addEventListener(
 
             setTimeout(
                 () => {
+
                     state.map.invalidateSize();
+
                 },
                 100
             );
@@ -2622,7 +3491,8 @@ window.addEventListener(
 
         console.error(
             "Live GPS error:",
-            event.error || event.message
+            event.error ||
+            event.message
         );
     }
 );
