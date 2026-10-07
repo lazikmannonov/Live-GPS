@@ -1254,13 +1254,14 @@ function isSocketReady() {
 
 function showRoom() {
     if (setupCard) {
-        setupCard.style.display =
-            "none";
+        setupCard.classList.add("hidden");
+        setupCard.style.display = "none";
     }
 
     if (roomCard) {
-        roomCard.style.display =
-            "";
+        // MUHIM: hidden klassini olib tashlaymiz
+        roomCard.classList.remove("hidden");
+        roomCard.style.display = "block";
     }
 
     if (currentRoomCode) {
@@ -1269,19 +1270,15 @@ function showRoom() {
     }
 
     if (switchRoomInput) {
-        switchRoomInput.value =
-            "";
+        switchRoomInput.value = "";
     }
 
     initMap();
 
     if (map) {
-        setTimeout(
-            function() {
-                map.invalidateSize();
-            },
-            100
-        );
+        setTimeout(function() {
+            map.invalidateSize();
+        }, 100);
     }
 
     startLocationSharing();
@@ -1291,19 +1288,20 @@ function showRoom() {
     );
 }
 
+
 // =====================================================
 // SHOW SETUP
 // =====================================================
 
 function showSetup() {
     if (setupCard) {
-        setupCard.style.display =
-            "";
+        setupCard.classList.remove("hidden");
+        setupCard.style.display = "";
     }
 
     if (roomCard) {
-        roomCard.style.display =
-            "none";
+        roomCard.classList.add("hidden");
+        roomCard.style.display = "none";
     }
 
     stopLocationSharing();
