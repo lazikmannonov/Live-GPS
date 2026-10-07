@@ -18,9 +18,7 @@ let databaseReady = false;
 if (DATABASE_URL) {
     pool = new Pool({
         connectionString: DATABASE_URL,
-        ssl: {
-            rejectUnauthorized: false
-        }
+        ssl: { rejectUnauthorized: false }
     });
 
     pool.on("error", function(error) {
@@ -28,7 +26,13 @@ if (DATABASE_URL) {
     });
 }
 
+
+/* =====================================================
+   DATABASE
+===================================================== */
+
 async function initDatabase() {
+
     if (!pool) {
         console.log("PostgreSQL: DATABASE_URL topilmadi.");
         console.log("Lokal rejimda ishlayapmiz.");
@@ -36,6 +40,7 @@ async function initDatabase() {
     }
 
     try {
+
         await pool.query(
             "CREATE TABLE IF NOT EXISTS gps_rooms (" +
             "id SERIAL PRIMARY KEY, " +
@@ -44,10 +49,27 @@ async function initDatabase() {
             "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
         );
 
+        await pool.query(
+            "CREATE TABLE IF NOT EXISTS gps_members (" +
+            "id SERIAL PRIMARY KEY, " +
+            "room_code VARCHAR(6) NOT NULL, " +
+            "user_id VARCHAR(100) NOT NULL, " +
+            "name VARCHAR(30) NOT NULL DEFAULT 'Foydalanuvchi', " +
+            "lat DOUBLE PRECISION, " +
+            "lng DOUBLE PRECISION, " +
+            "accuracy DOUBLE PRECISION, " +
+            "online BOOLEAN DEFAULT FALSE, " +
+            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+            "UNIQUE(room_code, user_id))"
+        );
+
         databaseReady = true;
 
         console.log("PostgreSQL: gps_rooms tayyor.");
+        console.log("PostgreSQL: gps_members tayyor.");
+
     } catch (error) {
+
         databaseReady = false;
 
         console.error(
@@ -61,20 +83,26 @@ async function initDatabase() {
     }
 }
 
+
 async function roomExists(code) {
+
     if (!databaseReady || !pool) {
         return false;
     }
 
-    const result = await pool.query(
-        "SELECT id FROM gps_rooms WHERE room_code = $1 LIMIT 1",
-        [code]
-    );
+    const result =
+        await pool.query(
+            "SELECT id FROM gps_rooms " +
+            "WHERE room_code = $1 LIMIT 1",
+            [code]
+        );
 
     return result.rows.length > 0;
 }
 
+
 async function createRoomInDatabase(code) {
+
     if (!databaseReady || !pool) {
         return;
     }
@@ -87,7 +115,9 @@ async function createRoomInDatabase(code) {
     );
 }
 
+
 async function updateRoom(code) {
+
     if (!databaseReady || !pool) {
         return;
     }
@@ -100,24 +130,148 @@ async function updateRoom(code) {
     );
 }
 
+
+/* =====================================================
+   MEMBER DATABASE
+===================================================== */
+
+async function saveMemberToDatabase(user) {
+
+    if (
+        !databaseReady ||
+        !pool ||
+        !user ||
+        !user.roomCode
+    ) {
+        return;
+    }
+
+    await pool.query(
+        "INSERT INTO gps_members " +
+        "(room_code, user_id, name, lat, lng, accuracy, online, updated_at) " +
+        "VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP) " +
+        "ON CONFLICT (room_code, user_id) " +
+        "DO UPDATE SET " +
+        "name = EXCLUDED.name, " +
+        "lat = EXCLUDED.lat, " +
+        "lng = EXCLUDED.lng, " +
+        "accuracy = EXCLUDED.accuracy, " +
+        "online = EXCLUDED.online, " +
+        "updated_at = CURRENT_TIMESTAMP",
+        [
+            user.roomCode,
+            user.id,
+            user.name,
+            user.lat,
+            user.lng,
+            user.accuracy,
+            user.online
+        ]
+    );
+}
+
+
+async function updateMemberLocationInDatabase(user) {
+
+    if (
+        !databaseReady ||
+        !pool ||
+        !user ||
+        !user.roomCode
+    ) {
+        return;
+    }
+
+    await pool.query(
+        "UPDATE gps_members SET " +
+        "lat = $1, " +
+        "lng = $2, " +
+        "accuracy = $3, " +
+        "online = TRUE, " +
+        "updated_at = CURRENT_TIMESTAMP " +
+        "WHERE room_code = $4 AND user_id = $5",
+        [
+            user.lat,
+            user.lng,
+            user.accuracy,
+            user.roomCode,
+            user.id
+        ]
+    );
+}
+
+
+async function setMemberOfflineInDatabase(user) {
+
+    if (
+        !databaseReady ||
+        !pool ||
+        !user ||
+        !user.roomCode
+    ) {
+        return;
+    }
+
+    await pool.query(
+        "UPDATE gps_members SET " +
+        "online = FALSE, " +
+        "updated_at = CURRENT_TIMESTAMP " +
+        "WHERE room_code = $1 AND user_id = $2",
+        [
+            user.roomCode,
+            user.id
+        ]
+    );
+}
+
+
+async function loadMembersFromDatabase(code) {
+
+    if (!databaseReady || !pool) {
+        return [];
+    }
+
+    const result =
+        await pool.query(
+            "SELECT " +
+            "user_id, name, lat, lng, accuracy, online " +
+            "FROM gps_members " +
+            "WHERE room_code = $1 " +
+            "ORDER BY updated_at ASC",
+            [code]
+        );
+
+    return result.rows;
+}
+
+
+/* =====================================================
+   SERVER / ROOMS
+===================================================== */
+
 app.use(
     express.static(
         path.join(__dirname)
     )
 );
 
+
 const rooms = new Map();
 
+
 function createUserId() {
+
     return crypto
         .randomBytes(8)
         .toString("hex");
 }
 
+
 function send(ws, data) {
+
     if (
-        ws.readyState ===
-        WebSocket.OPEN
+        ws &&
+        ws.readyState === WebSocket.OPEN
     ) {
         ws.send(
             JSON.stringify(data)
@@ -125,24 +279,32 @@ function send(ws, data) {
     }
 }
 
+
 function broadcast(code, data) {
-    const room = rooms.get(code);
+
+    const room =
+        rooms.get(code);
 
     if (!room) {
         return;
     }
 
-    for (
-        const user of room.values()
-    ) {
-        send(
-            user.ws,
-            data
-        );
+    for (const user of room.values()) {
+
+        if (user.ws) {
+
+            send(
+                user.ws,
+                data
+            );
+
+        }
     }
 }
 
+
 function getUsers(code) {
+
     const room =
         rooms.get(code);
 
@@ -150,10 +312,10 @@ function getUsers(code) {
         return [];
     }
 
-    return Array.from(
-        room.values()
-    ).map(
-        function(user) {
+    return Array
+        .from(room.values())
+        .map(function(user) {
+
             return {
                 id: user.id,
                 name: user.name,
@@ -162,21 +324,20 @@ function getUsers(code) {
                 accuracy: user.accuracy,
                 online: user.online
             };
-        }
-    );
+
+        });
 }
 
+
 function generateRoomCode() {
+
     const chars =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     let code = "";
 
-    for (
-        let i = 0;
-        i < 6;
-        i++
-    ) {
+    for (let i = 0; i < 6; i++) {
+
         code +=
             chars[
                 crypto.randomInt(
@@ -189,16 +350,16 @@ function generateRoomCode() {
     return code;
 }
 
+
 async function getAvailableRoomCode() {
-    for (
-        let i = 0;
-        i < 50;
-        i++
-    ) {
+
+    for (let i = 0; i < 50; i++) {
+
         const code =
             generateRoomCode();
 
         if (!databaseReady) {
+
             if (!rooms.has(code)) {
                 return code;
             }
@@ -206,9 +367,7 @@ async function getAvailableRoomCode() {
             continue;
         }
 
-        if (
-            !(await roomExists(code))
-        ) {
+        if (!(await roomExists(code))) {
             return code;
         }
     }
@@ -216,49 +375,153 @@ async function getAvailableRoomCode() {
     return null;
 }
 
+
+/* =====================================================
+   LOAD ROOM FROM DATABASE
+===================================================== */
+
+async function ensureRoomLoaded(code) {
+
+    if (rooms.has(code)) {
+        return rooms.get(code);
+    }
+
+    const room =
+        new Map();
+
+    if (databaseReady) {
+
+        const members =
+            await loadMembersFromDatabase(
+                code
+            );
+
+        members.forEach(
+            function(member) {
+
+                room.set(
+                    member.user_id,
+                    {
+                        id:
+                            member.user_id,
+
+                        name:
+                            member.name ||
+                            "Foydalanuvchi",
+
+                        roomCode:
+                            code,
+
+                        lat:
+                            member.lat !== null
+                                ? Number(member.lat)
+                                : null,
+
+                        lng:
+                            member.lng !== null
+                                ? Number(member.lng)
+                                : null,
+
+                        accuracy:
+                            member.accuracy !== null
+                                ? Number(member.accuracy)
+                                : null,
+
+                        online:false,
+
+                        ws:null
+                    }
+                );
+
+            }
+        );
+    }
+
+    rooms.set(
+        code,
+        room
+    );
+
+    return room;
+}
+
+
+/* =====================================================
+   WEBSOCKET
+===================================================== */
+
 wss.on(
     "connection",
     function(ws) {
+
         const user = {
-            id: createUserId(),
-            name: "Foydalanuvchi",
-            roomCode: null,
-            lat: null,
-            lng: null,
-            accuracy: null,
-            online: true,
-            ws: ws
+
+            id:
+                createUserId(),
+
+            name:
+                "Foydalanuvchi",
+
+            roomCode:
+                null,
+
+            lat:
+                null,
+
+            lng:
+                null,
+
+            accuracy:
+                null,
+
+            online:
+                true,
+
+            ws:
+                ws
         };
+
 
         send(
             ws,
             {
-                type: "connected",
-                id: user.id
+                type:"connected",
+                id:user.id
             }
         );
+
 
         ws.on(
             "message",
             async function(raw) {
+
                 try {
+
                     const data =
                         JSON.parse(
                             raw.toString()
                         );
 
+
+                    /* =================================
+                       CREATE ROOM
+                    ================================= */
+
                     if (
                         data.type ===
                         "create-room"
                     ) {
+
                         const code =
                             await getAvailableRoomCode();
 
+
                         if (!code) {
+
                             send(
                                 ws,
                                 {
-                                    type: "error",
+                                    type:"error",
                                     message:
                                         "Guruh yaratib bo'lmadi."
                                 }
@@ -267,58 +530,92 @@ wss.on(
                             return;
                         }
 
+
                         await createRoomInDatabase(
                             code
                         );
 
-                        rooms.set(
-                            code,
-                            new Map()
-                        );
 
                         const room =
-                            rooms.get(code);
+                            await ensureRoomLoaded(
+                                code
+                            );
+
+
+                        const requestedUserId =
+                            data.userId
+                                ? String(
+                                    data.userId
+                                ).slice(0,100)
+                                : "";
+
+
+                        if (requestedUserId) {
+
+                            user.id =
+                                requestedUserId;
+
+                        }
+
 
                         user.roomCode =
                             code;
+
 
                         user.name =
                             String(
                                 data.name ||
                                 "Foydalanuvchi"
                             )
-                                .trim()
-                                .slice(
-                                    0,
-                                    30
-                                );
+                            .trim()
+                            .slice(0,30);
+
+
+                        user.online =
+                            true;
+
+
+                        user.ws =
+                            ws;
+
 
                         room.set(
                             user.id,
                             user
                         );
 
+
+                        await saveMemberToDatabase(
+                            user
+                        );
+
+
                         await updateRoom(
                             code
                         );
+
 
                         send(
                             ws,
                             {
                                 type:
                                     "room-created",
+
                                 roomCode:
                                     code,
+
                                 userId:
                                     user.id
                             }
                         );
+
 
                         broadcast(
                             code,
                             {
                                 type:
                                     "users",
+
                                 users:
                                     getUsers(
                                         code
@@ -326,32 +623,41 @@ wss.on(
                             }
                         );
 
+
                         console.log(
                             "Guruh yaratildi:",
                             code
                         );
 
+
                         return;
                     }
+
+
+                    /* =================================
+                       JOIN ROOM
+                    ================================= */
 
                     if (
                         data.type ===
                         "join-room"
                     ) {
+
                         const code =
                             String(
                                 data.roomCode ||
                                 ""
                             )
-                                .trim()
-                                .toUpperCase();
+                            .trim()
+                            .toUpperCase();
+
 
                         if (!code) {
+
                             send(
                                 ws,
                                 {
-                                    type:
-                                        "error",
+                                    type:"error",
                                     message:
                                         "Guruh kodini kiriting."
                                 }
@@ -360,27 +666,26 @@ wss.on(
                             return;
                         }
 
-                        const roomExistsInMemory =
-                            rooms.has(
-                                code
-                            );
 
-                        const roomExistsInDatabase =
+                        const existsInMemory =
+                            rooms.has(code);
+
+
+                        const existsInDatabase =
                             databaseReady
-                                ? await roomExists(
-                                      code
-                                  )
+                                ? await roomExists(code)
                                 : false;
 
+
                         if (
-                            !roomExistsInMemory &&
-                            !roomExistsInDatabase
+                            !existsInMemory &&
+                            !existsInDatabase
                         ) {
+
                             send(
                                 ws,
                                 {
-                                    type:
-                                        "error",
+                                    type:"error",
                                     message:
                                         "Bunday guruh topilmadi."
                                 }
@@ -389,61 +694,122 @@ wss.on(
                             return;
                         }
 
-                        if (
-                            !rooms.has(code)
-                        ) {
-                            rooms.set(
-                                code,
-                                new Map()
-                            );
-                        }
 
                         const room =
-                            rooms.get(code);
+                            await ensureRoomLoaded(
+                                code
+                            );
+
+
+                        const requestedUserId =
+                            data.userId
+                                ? String(
+                                    data.userId
+                                ).slice(0,100)
+                                : "";
+
+
+                        if (requestedUserId) {
+
+                            user.id =
+                                requestedUserId;
+
+                        }
+
+
+                        const oldUser =
+                            room.get(
+                                user.id
+                            );
+
 
                         user.roomCode =
                             code;
+
 
                         user.name =
                             String(
                                 data.name ||
                                 "Foydalanuvchi"
                             )
-                                .trim()
-                                .slice(
-                                    0,
-                                    30
-                                );
+                            .trim()
+                            .slice(0,30);
+
 
                         user.online =
                             true;
+
+
+                        user.ws =
+                            ws;
+
+
+                        if (
+                            oldUser &&
+                            Number.isFinite(
+                                Number(
+                                    oldUser.lat
+                                )
+                            ) &&
+                            Number.isFinite(
+                                Number(
+                                    oldUser.lng
+                                )
+                            )
+                        ) {
+
+                            user.lat =
+                                Number(
+                                    oldUser.lat
+                                );
+
+                            user.lng =
+                                Number(
+                                    oldUser.lng
+                                );
+
+                            user.accuracy =
+                                oldUser.accuracy;
+                        }
+
 
                         room.set(
                             user.id,
                             user
                         );
 
+
+                        await saveMemberToDatabase(
+                            user
+                        );
+
+
                         await updateRoom(
                             code
                         );
+
 
                         send(
                             ws,
                             {
                                 type:
                                     "joined-room",
+
                                 roomCode:
                                     code,
+
                                 userId:
                                     user.id
                             }
                         );
+
 
                         broadcast(
                             code,
                             {
                                 type:
                                     "users",
+
                                 users:
                                     getUsers(
                                         code
@@ -451,34 +817,43 @@ wss.on(
                             }
                         );
 
+
                         console.log(
                             "Guruhga qo'shildi:",
                             code,
                             user.name
                         );
 
+
                         return;
                     }
+
+
+                    /* =================================
+                       LOCATION
+                    ================================= */
 
                     if (
                         data.type ===
                         "location"
                     ) {
-                        if (
-                            !user.roomCode
-                        ) {
+
+                        if (!user.roomCode) {
                             return;
                         }
+
 
                         const lat =
                             Number(
                                 data.lat
                             );
 
+
                         const lng =
                             Number(
                                 data.lng
                             );
+
 
                         const accuracy =
                             Number(
@@ -486,16 +861,14 @@ wss.on(
                                 0
                             );
 
+
                         if (
-                            !Number.isFinite(
-                                lat
-                            ) ||
-                            !Number.isFinite(
-                                lng
-                            )
+                            !Number.isFinite(lat) ||
+                            !Number.isFinite(lng)
                         ) {
                             return;
                         }
+
 
                         if (
                             lat < -90 ||
@@ -506,27 +879,39 @@ wss.on(
                             return;
                         }
 
+
                         user.lat =
                             lat;
+
 
                         user.lng =
                             lng;
 
+
                         user.accuracy =
                             accuracy;
+
 
                         user.online =
                             true;
 
+
+                        await updateMemberLocationInDatabase(
+                            user
+                        );
+
+
                         await updateRoom(
                             user.roomCode
                         );
+
 
                         broadcast(
                             user.roomCode,
                             {
                                 type:
                                     "users",
+
                                 users:
                                     getUsers(
                                         user.roomCode
@@ -534,36 +919,47 @@ wss.on(
                             }
                         );
 
+
                         return;
                     }
+
+
+                    /* =================================
+                       NAME
+                    ================================= */
 
                     if (
                         data.type ===
                         "name"
                     ) {
+
                         user.name =
                             String(
                                 data.name ||
                                 "Foydalanuvchi"
                             )
-                                .trim()
-                                .slice(
-                                    0,
-                                    30
-                                );
+                            .trim()
+                            .slice(0,30);
 
-                        if (
-                            user.roomCode
-                        ) {
+
+                        if (user.roomCode) {
+
+                            await saveMemberToDatabase(
+                                user
+                            );
+
+
                             await updateRoom(
                                 user.roomCode
                             );
+
 
                             broadcast(
                                 user.roomCode,
                                 {
                                     type:
                                         "users",
+
                                     users:
                                         getUsers(
                                             user.roomCode
@@ -572,19 +968,24 @@ wss.on(
                             );
                         }
 
+
                         return;
                     }
+
                 } catch (error) {
+
                     console.error(
                         "WebSocket xatosi:",
                         error.message
                     );
+
 
                     send(
                         ws,
                         {
                             type:
                                 "error",
+
                             message:
                                 "Server xatosi yuz berdi."
                         }
@@ -593,58 +994,106 @@ wss.on(
             }
         );
 
+
+        /* =============================================
+           DISCONNECT
+        ============================================= */
+
         ws.on(
             "close",
-            function() {
+            async function() {
+
                 user.online =
                     false;
 
-                if (
-                    !user.roomCode
-                ) {
+
+                user.ws =
+                    null;
+
+
+                if (!user.roomCode) {
                     return;
                 }
 
+
+                const code =
+                    user.roomCode;
+
+
                 const room =
-                    rooms.get(
-                        user.roomCode
-                    );
+                    rooms.get(code);
+
 
                 if (!room) {
                     return;
                 }
 
-                room.delete(
-                    user.id
-                );
 
-                if (
-                    room.size === 0
-                ) {
-                    rooms.delete(
-                        user.roomCode
+                const existingUser =
+                    room.get(
+                        user.id
                     );
 
-                    return;
+
+                if (existingUser) {
+
+                    existingUser.online =
+                        false;
+
+                    existingUser.ws =
+                        null;
+
+
+                    await setMemberOfflineInDatabase(
+                        existingUser
+                    );
+
+                } else {
+
+                    room.set(
+                        user.id,
+                        user
+                    );
+
+
+                    await setMemberOfflineInDatabase(
+                        user
+                    );
                 }
 
+
+                await updateRoom(
+                    code
+                );
+
+
                 broadcast(
-                    user.roomCode,
+                    code,
                     {
                         type:
                             "users",
+
                         users:
                             getUsers(
-                                user.roomCode
+                                code
                             )
                     }
+                );
+
+
+                console.log(
+                    "Foydalanuvchi offline:",
+                    user.name,
+                    code
                 );
             }
         );
 
+
         ws.on(
             "error",
             function(error) {
+
                 console.error(
                     "WebSocket xatosi:",
                     error.message
@@ -654,11 +1103,19 @@ wss.on(
     }
 );
 
+
+/* =====================================================
+   HEALTH
+===================================================== */
+
 app.get(
     "/health",
     function(req, res) {
+
         res.json({
-            status: "ok",
+
+            status:"ok",
+
             database:
                 databaseReady
                     ? "connected"
@@ -667,28 +1124,38 @@ app.get(
     }
 );
 
+
+/* =====================================================
+   START
+===================================================== */
+
 async function startServer() {
+
     await initDatabase();
+
 
     server.listen(
         PORT,
         function() {
+
             console.log(
                 "Live GPS: http://localhost:" +
                 PORT
             );
 
-            if (
-                databaseReady
-            ) {
+
+            if (databaseReady) {
+
                 console.log(
                     "PostgreSQL: ulandi"
                 );
 
                 console.log(
-                    "Guruhlar: bazada saqlanadi"
+                    "Guruhlar va foydalanuvchilar bazada saqlanadi"
                 );
+
             } else {
+
                 console.log(
                     "PostgreSQL: hozircha ulanmagan"
                 );
@@ -701,10 +1168,17 @@ async function startServer() {
     );
 }
 
+
+/* =====================================================
+   SHUTDOWN
+===================================================== */
+
 async function shutdown() {
+
     if (pool) {
         await pool.end();
     }
+
 
     server.close(
         function() {
@@ -713,14 +1187,17 @@ async function shutdown() {
     );
 }
 
+
 process.on(
     "SIGINT",
     shutdown
 );
 
+
 process.on(
     "SIGTERM",
     shutdown
 );
+
 
 startServer();
