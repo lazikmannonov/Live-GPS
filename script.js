@@ -570,7 +570,7 @@ function handleMessage(data) {
         );
 
         showRoom(code);
-
+      
         startLocation();
 
         clearErrors();
@@ -579,7 +579,13 @@ function handleMessage(data) {
         return;
     }
 
-    if (data.type === "joined-room") {
+   function updateLocationStatus(text) {
+    if (els.locationStatus) {
+        els.locationStatus.textContent = text;
+    }
+}
+  
+   if (data.type === "joined-room") {
         const code =
             normalizeRoomCode(
                 data.roomCode ||
