@@ -553,46 +553,62 @@ function createMarkerElement(user) {
     const wrapper =
         document.createElement("div");
 
-    wrapper.className =
-        "gps-marker";
+    wrapper.className = "gps-marker";
 
-    wrapper.style.pointerEvents =
-        "auto";
+    /* Foydalanuvchi ID sini markerning o‘zida saqlaymiz */
+    const userId =
+        String(
+            user.id ||
+            user.userId ||
+            ""
+        );
 
-    wrapper.style.cursor =
-        "pointer";
+    wrapper.dataset.userId = userId;
+
+    wrapper.style.pointerEvents = "auto";
+    wrapper.style.cursor = "pointer";
 
 
+    /*
+     * Marker bosilganda aynan shu
+     * foydalanuvchining koordinatasiga boramiz.
+     */
     wrapper.addEventListener(
         "click",
-        event => {
+        function(event) {
 
+            event.preventDefault();
             event.stopPropagation();
 
-            const id =
-                user.id ||
-                user.userId;
+            console.log(
+                "MARKER CLICK:",
+                userId,
+                user.name || user.userName,
+                user.lat,
+                user.lng
+            );
 
-            centerSelectedUser(id);
-        }
+            centerSelectedUser(userId);
+        },
+        true
     );
 
 
+    /*
+     * O‘zimiz yashil,
+     * boshqa guruh a'zolari ko‘k.
+     */
     const isMe =
-        String(
-            user.id ||
-            user.userId
-        ) ===
+        userId ===
         String(state.userId);
 
 
-    if (isMe) {
-        wrapper.classList.add("me");
-    } else {
-        wrapper.classList.add("other");
-    }
+    wrapper.classList.add(
+        isMe ? "me" : "other"
+    );
 
 
+    /* Pin */
     const pin =
         document.createElement("div");
 
@@ -600,6 +616,7 @@ function createMarkerElement(user) {
         "gps-marker-pin";
 
 
+    /* Ichki nuqta */
     const dot =
         document.createElement("div");
 
@@ -610,6 +627,7 @@ function createMarkerElement(user) {
     pin.appendChild(dot);
 
 
+    /* Ism */
     const label =
         document.createElement("div");
 
@@ -628,7 +646,6 @@ function createMarkerElement(user) {
 
     return wrapper;
 }
-
 
 /* =========================================================
    REMOVE MARKER
@@ -827,7 +844,13 @@ function centerMyLocation() {
 function centerSelectedUser(userId) {
 
     const id =
-        String(userId);
+        String(userId || "");
+
+    console.log(
+        "CENTER USER:",
+        id
+    );
+
 
     const user =
         state.users.get(id);
@@ -837,7 +860,8 @@ function centerSelectedUser(userId) {
 
         console.warn(
             "Foydalanuvchi topilmadi:",
-            id
+            id,
+            Array.from(state.users.keys())
         );
 
         return;
@@ -851,20 +875,38 @@ function centerSelectedUser(userId) {
         Number(user.lng);
 
 
+    console.log(
+        "USER COORDINATES:",
+        {
+            id,
+            name: user.name || user.userName,
+            lat,
+            lng
+        }
+    );
+
+
     if (
         !Number.isFinite(lat) ||
-        !Number.isFinite(lng)
+        !Number.isFinite(lng) ||
+        Math.abs(lat) > 90 ||
+        Math.abs(lng) > 180
     ) {
 
         updateLocationStatus(
-            "waiting",
-            "Bu foydalanuvchining joylashuvi mavjud emas"
+            "error",
+            "Bu a'zoning joylashuvi noto‘g‘ri"
         );
 
         return;
     }
 
 
+    /*
+     * Aynan shu a'zoning koordinatasi.
+     * Boshqa foydalanuvchining koordinatasi
+     * ishlatilmaydi.
+     */
     centerMap(
         lng,
         lat,
@@ -872,6 +914,9 @@ function centerSelectedUser(userId) {
     );
 
 
+    /*
+     * Tanlangan markerga vizual urg‘u.
+     */
     const marker =
         state.markers.get(id);
 
@@ -881,11 +926,13 @@ function centerSelectedUser(userId) {
         const element =
             marker.element;
 
+
         if (element) {
 
             element.classList.add(
                 "selected"
             );
+
 
             setTimeout(
                 () => {
@@ -903,13 +950,10 @@ function centerSelectedUser(userId) {
 
     console.log(
         "SELECTED USER LOCATION:",
-        user.name ||
-        user.userName,
         lat,
         lng
     );
 }
-
 
 /* =========================================================
    CENTER ALL USERS
