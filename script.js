@@ -537,7 +537,23 @@ function createMarkerElement(user) {
     wrapper.className =
         "gps-marker";
 
+wrapper.style.pointerEvents = "auto";
+wrapper.style.cursor = "pointer";
 
+wrapper.addEventListener(
+    "click",
+    event => {
+
+        event.stopPropagation();
+
+        const id =
+            user.id ||
+            user.userId;
+
+        centerSelectedUser(id);
+    }
+);
+  
     /*
      * O‘zimiz yashil,
      * boshqalar ko‘k.
@@ -791,6 +807,60 @@ function centerMyLocation() {
     );
 }
 
+/* =========================================================
+   CENTER SELECTED USER
+========================================================= */
+
+function centerSelectedUser(userId) {
+
+    const user =
+        state.users.get(String(userId));
+
+    if (!user) {
+        console.warn("Foydalanuvchi topilmadi:", userId);
+        return;
+    }
+
+    const lat = Number(user.lat);
+    const lng = Number(user.lng);
+
+    if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng)
+    ) {
+        updateLocationStatus(
+            "waiting",
+            "Bu foydalanuvchining joylashuvi mavjud emas"
+        );
+        return;
+    }
+
+    /* Aynan tanlangan odamning joylashuviga o'tamiz */
+    centerMap(lng, lat, 18);
+
+    /* Markerga qisqa vizual urg'u */
+    const marker =
+        state.markers.get(String(userId));
+
+    if (marker) {
+        const element = marker.element;
+
+        if (element) {
+            element.classList.add("selected");
+
+            setTimeout(() => {
+                element.classList.remove("selected");
+            }, 1200);
+        }
+    }
+
+    console.log(
+        "SELECTED USER LOCATION:",
+        user.name || user.userName,
+        lat,
+        lng
+    );
+}
 
 /* =========================================================
    CENTER ALL USERS
@@ -917,21 +987,17 @@ function updateMembersUI() {
             state.users.values()
         );
 
-
     setText(
         "membersCount",
         String(users.length)
     );
 
-
     const list =
         $("membersList");
-
 
     if (!list) {
         return;
     }
-
 
     if (!users.length) {
 
@@ -942,7 +1008,6 @@ function updateMembersUI() {
 
         return;
     }
-
 
     list.innerHTML =
         users
@@ -955,19 +1020,33 @@ function updateMembersUI() {
                         "Foydalanuvchi"
                     );
 
-
                 const id =
-                    user.id ||
-                    user.userId;
-
+                    String(
+                        user.id ||
+                        user.userId
+                    );
 
                 const isMe =
-                    String(id) ===
+                    id ===
                     String(state.userId);
 
+                const hasLocation =
+                    user.lat != null &&
+                    user.lng != null &&
+                    Number.isFinite(
+                        Number(user.lat)
+                    ) &&
+                    Number.isFinite(
+                        Number(user.lng)
+                    );
 
                 return `
-                    <div class="member-item">
+                    <div
+                        class="member-item"
+                        data-user-id="${escapeHTML(id)}"
+                        ${hasLocation ? 'role="button" tabindex="0"' : ''}
+                        ${hasLocation ? 'title="Xaritada joylashuvini ko‘rsatish"' : ''}
+                    >
 
                         <div class="member-avatar">
                             ${name
@@ -988,7 +1067,7 @@ function updateMembersUI() {
 
                             <div class="member-status">
                                 ${
-                                    user.lat != null
+                                    hasLocation
                                         ? "● Online"
                                         : "○ Joylashuv yo‘q"
                                 }
@@ -996,12 +1075,50 @@ function updateMembersUI() {
 
                         </div>
 
+                        ${
+                            hasLocation
+                                ? `<div class="member-map-arrow">⌖</div>`
+                                : ""
+                        }
+
                     </div>
                 `;
             })
             .join("");
-}
 
+
+    /* A'zo ustiga bosilganda xaritada o'sha odamni ko'rsatamiz */
+    list
+        .querySelectorAll(".member-item[data-user-id]")
+        .forEach(item => {
+
+            const userId =
+                item.dataset.userId;
+
+            item.addEventListener(
+                "click",
+                () => {
+                    centerSelectedUser(userId);
+                }
+            );
+
+            item.addEventListener(
+                "keydown",
+                event => {
+
+                    if (
+                        event.key === "Enter" ||
+                        event.key === " "
+                    ) {
+
+                        event.preventDefault();
+
+                        centerSelectedUser(userId);
+                    }
+                }
+            );
+        });
+}
 
 /* =========================================================
    GPS START
