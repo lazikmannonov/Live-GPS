@@ -165,9 +165,23 @@ function setText(id, value) {
 
 function showElement(id, show) {
     const el = $(id);
-    if (!el) return;
 
-    el.style.display = show ? "" : "none";
+    if (!el) {
+        return;
+    }
+
+    if (show) {
+        // hidden klassini olib tashlaymiz
+        el.classList.remove("hidden");
+
+        // CSS default holatiga qaytaramiz
+        el.style.display = "";
+    } else {
+        // Yashiramiz
+        el.classList.add("hidden");
+
+        el.style.display = "none";
+    }
 }
 
 function escapeHTML(value) {
