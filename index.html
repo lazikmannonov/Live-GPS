@@ -2,6 +2,7 @@
 <!DOCTYPE html>
 <html lang="uz">
 <head>
+
     <meta charset="UTF-8">
 
     <meta
@@ -27,11 +28,12 @@
     <!-- =====================================================
          YANDEX MAPS API 3.0
          
-         DIQQAT:
-         YANGI_YANDEX_API_KEY o'rniga yangi API keyingizni yozing.
+         MUHIM:
+         YANGI_YANDEX_API_KEY o'rniga Yandex'dan olgan
+         yangi API keyingizni yozing.
     ====================================================== -->
 
-    <script src="https://api-maps.yandex.ru/v3/?apikey=&lang=uz_UZ"></script>
+    <script src="https://api-maps.yandex.ru/v3/?apikey=fefa16f6-1dcb-4862-80eb-e59209bd56f5&lang=uz_UZ"></script>
 
 
     <!-- =====================================================
@@ -111,7 +113,6 @@
 </header>
 
 
-
 <!-- =====================================================
      MAIN
 ===================================================== -->
@@ -140,15 +141,11 @@
         <div class="hero-title">
 
             <h1>
-
                 Joylashuvingizni
-
                 <br>
-
                 <span>
                     real vaqtda ulashing.
                 </span>
-
             </h1>
 
 
@@ -164,9 +161,7 @@
         <div class="setup-content">
 
 
-            <!-- =================================================
-                 ISM
-            ================================================== -->
+            <!-- ISM -->
 
             <div class="field-group">
 
@@ -195,10 +190,7 @@
             </div>
 
 
-
-            <!-- =================================================
-                 CREATE ROOM
-            ================================================== -->
+            <!-- CREATE ROOM -->
 
             <button
                 id="createRoomBtn"
@@ -223,10 +215,7 @@
             </button>
 
 
-
-            <!-- =================================================
-                 DIVIDER
-            ================================================== -->
+            <!-- DIVIDER -->
 
             <div class="or-divider">
 
@@ -239,10 +228,7 @@
             </div>
 
 
-
-            <!-- =================================================
-                 ROOM CODE
-            ================================================== -->
+            <!-- ROOM CODE -->
 
             <div class="field-group">
 
@@ -273,10 +259,7 @@
             </div>
 
 
-
-            <!-- =================================================
-                 JOIN ROOM
-            ================================================== -->
+            <!-- JOIN ROOM -->
 
             <button
                 id="joinRoomBtn"
@@ -296,10 +279,7 @@
             </button>
 
 
-
-            <!-- =================================================
-                 SETUP ERROR
-            ================================================== -->
+            <!-- SETUP ERROR -->
 
             <div
                 id="setupError"
@@ -311,10 +291,7 @@
         </div>
 
 
-
-        <!-- =================================================
-             FEATURES
-        ================================================== -->
+        <!-- FEATURES -->
 
         <div class="setup-features">
 
@@ -342,7 +319,6 @@
             </div>
 
 
-
             <div class="feature">
 
                 <div class="feature-icon blue">
@@ -364,7 +340,6 @@
                 </div>
 
             </div>
-
 
 
             <div class="feature">
@@ -395,7 +370,6 @@
     </section>
 
 
-
     <!-- =================================================
          ROOM CARD
     ================================================== -->
@@ -406,9 +380,7 @@
     >
 
 
-        <!-- =================================================
-             ROOM HEADER
-        ================================================== -->
+        <!-- ROOM HEADER -->
 
         <div class="room-top">
 
@@ -455,10 +427,7 @@
         </div>
 
 
-
-        <!-- =================================================
-             STATUS
-        ================================================== -->
+        <!-- STATUS -->
 
         <div class="status-grid">
 
@@ -484,7 +453,6 @@
                 </div>
 
             </div>
-
 
 
             <div class="status-card">
@@ -513,13 +481,11 @@
         </div>
 
 
-
         <!-- =================================================
              YANDEX MAP
         ================================================== -->
 
         <div class="map-wrapper">
-
 
             <div class="map-header">
 
@@ -557,16 +523,9 @@
             </div>
 
 
-
             <div class="map-container">
 
-
-                <!-- =================================================
-                     YANDEX MAP CONTAINER
-
-                     Muhim:
-                     style.css bu elementga height berishi kerak.
-                ================================================== -->
+                <!-- YANDEX MAP CONTAINER -->
 
                 <div
                     id="map"
@@ -574,13 +533,9 @@
                 ></div>
 
 
-
-                <!-- =================================================
-                     MAP CONTROLS
-                ================================================== -->
+                <!-- MAP CONTROLS -->
 
                 <div class="map-floating-controls">
-
 
                     <button
                         id="myLocationBtn"
@@ -603,14 +558,10 @@
                         ⛶
                     </button>
 
-
                 </div>
 
 
-
-                <!-- =================================================
-                     MAP INFO
-                ================================================== -->
+                <!-- MAP INFO -->
 
                 <div class="map-info-card">
 
@@ -632,11 +583,9 @@
 
                 </div>
 
-
             </div>
 
         </div>
-
 
 
         <!-- =================================================
@@ -644,7 +593,6 @@
         ================================================== -->
 
         <div class="members-section">
-
 
             <div class="section-heading">
 
@@ -672,7 +620,6 @@
             </div>
 
 
-
             <div
                 id="membersList"
                 class="members-list"
@@ -684,9 +631,7 @@
 
             </div>
 
-
         </div>
-
 
 
         <!-- =================================================
@@ -694,7 +639,6 @@
         ================================================== -->
 
         <div class="switch-panel">
-
 
             <div class="switch-title">
 
@@ -710,9 +654,7 @@
             </div>
 
 
-
             <div class="switch-form">
-
 
                 <input
                     id="switchRoomInput"
@@ -733,16 +675,12 @@
                     O‘tish →
                 </button>
 
-
             </div>
 
         </div>
 
 
-
-        <!-- =================================================
-             ROOM ERROR
-        ================================================== -->
+        <!-- ROOM ERROR -->
 
         <div
             id="roomError"
@@ -755,7 +693,6 @@
     </section>
 
 </main>
-
 
 
 <!-- =====================================================
@@ -785,16 +722,14 @@
 </footer>
 
 
-
 <!-- =====================================================
      APP SCRIPT
-     
-     Leaflet BU YERDA YO'Q.
-     Xarita Yandex Maps 3.0 orqali ishlaydi.
+
+     Leaflet ishlatilmaydi.
+     Yandex Maps 3.0 ishlatiladi.
 ===================================================== -->
 
 <script src="script.js"></script>
-
 
 </body>
 </html>
