@@ -1559,7 +1559,8 @@ function handleServerMessage(event) {
 
     return;
 }
-
+ 
+    }       
     /* =====================================================
        LEFT ROOM
        ===================================================== */
@@ -2367,16 +2368,18 @@ function renderUsers() {
          * A'zo ustiga bosilganda
          * uning joylashuviga boramiz.
          */
-        item.addEventListener(
+           item.addEventListener(
             "click",
             () => {
-
                 centerMapOnUser(user);
-
             }
         );
 
-      /* =========================================================
+        list.appendChild(item);
+    });
+}
+
+   /* =========================================================
    CENTER MAP ON USER
    ========================================================= */
 
