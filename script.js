@@ -1,7 +1,8 @@
 // ============================================================
 // LIVE GPS — SCRIPT.JS
-// HTML ID'lariga moslangan versiya
-// index.js ga tegilmaydi
+// TO‘LIQ TUZATILGAN VERSIYA
+// HTML ID'lariga mos
+// server.js ga tegilmaydi
 // ============================================================
 
 const state = {
@@ -95,8 +96,7 @@ function updateRoomCodeUI() {
     const el = $("currentRoomCode");
 
     if (el) {
-        el.textContent =
-            state.roomCode || "------";
+        el.textContent = state.roomCode || "------";
     }
 }
 
@@ -110,10 +110,7 @@ function showSetupError(message) {
 
     if (el) {
         el.textContent = message || "";
-        el.classList.toggle(
-            "show",
-            Boolean(message)
-        );
+        el.classList.toggle("show", Boolean(message));
     }
 }
 
@@ -123,10 +120,7 @@ function showRoomError(message) {
 
     if (el) {
         el.textContent = message || "";
-        el.classList.toggle(
-            "show",
-            Boolean(message)
-        );
+        el.classList.toggle("show", Boolean(message));
     }
 }
 
@@ -135,55 +129,32 @@ function updateLocationStatus(type, message) {
     const el = $("locationStatus");
 
     if (el) {
-        el.textContent =
-            message || "Kutilmoqda...";
-
-        el.dataset.status =
-            type || "waiting";
+        el.textContent = message || "Kutilmoqda...";
+        el.dataset.status = type || "waiting";
     }
 
-    console.log(
-        "LOCATION STATUS:",
-        type,
-        message
-    );
+    console.log("LOCATION STATUS:", type, message);
 }
 
 
 function updateConnectionUI(connected) {
-    const pill =
-        $("connectionPill");
-
-    const text =
-        $("connectionText");
-
-    const status =
-        $("connectionStatus");
+    const pill = $("connectionPill");
+    const text = $("connectionText");
+    const status = $("connectionStatus");
 
     if (pill) {
-        pill.classList.toggle(
-            "offline",
-            !connected
-        );
-
-        pill.classList.toggle(
-            "online",
-            connected
-        );
+        pill.classList.toggle("offline", !connected);
+        pill.classList.toggle("online", connected);
     }
 
     if (text) {
-        text.textContent =
-            connected
-                ? "Online"
-                : "Offline";
+        text.textContent = connected ? "Online" : "Offline";
     }
 
     if (status) {
-        status.textContent =
-            connected
-                ? "Ulangan"
-                : "Ulanmoqda...";
+        status.textContent = connected
+            ? "Ulangan"
+            : "Ulanmoqda...";
     }
 }
 
@@ -197,26 +168,17 @@ async function loadYandexMaps() {
         return true;
     }
 
-    const started =
-        Date.now();
+    const started = Date.now();
 
     while (
         typeof ymaps3 === "undefined" &&
         Date.now() - started < 15000
     ) {
-        await new Promise(
-            resolve =>
-                setTimeout(resolve, 200)
-        );
+        await new Promise(resolve => setTimeout(resolve, 200));
     }
 
-    if (
-        typeof ymaps3 === "undefined"
-    ) {
-        console.error(
-            "YANDEX MAPS API TOPILMADI"
-        );
-
+    if (typeof ymaps3 === "undefined") {
+        console.error("YANDEX MAPS API TOPILMADI");
         return false;
     }
 
@@ -225,18 +187,11 @@ async function loadYandexMaps() {
 
         state.yandexReady = true;
 
-        console.log(
-            "YANDEX MAPS: ready"
-        );
+        console.log("YANDEX MAPS: ready");
 
         return true;
-
     } catch (error) {
-        console.error(
-            "YANDEX MAPS READY ERROR:",
-            error
-        );
-
+        console.error("YANDEX MAPS READY ERROR:", error);
         return false;
     }
 }
@@ -247,19 +202,14 @@ async function initMap() {
         return;
     }
 
-    const mapElement =
-        $("map");
+    const mapElement = $("map");
 
     if (!mapElement) {
-        console.error(
-            "MAP ELEMENT TOPILMADI"
-        );
-
+        console.error("MAP ELEMENT TOPILMADI");
         return;
     }
 
-    const ready =
-        await loadYandexMaps();
+    const ready = await loadYandexMaps();
 
     if (!ready) {
         return;
@@ -273,19 +223,18 @@ async function initMap() {
             YMapListener
         } = ymaps3;
 
-        state.map =
-            new YMap(
-                mapElement,
-                {
-                    location: {
-                        center: [
-                            69.2401,
-                            41.2995
-                        ],
-                        zoom: 12
-                    }
+        state.map = new YMap(
+            mapElement,
+            {
+                location: {
+                    center: [
+                        69.2401,
+                        41.2995
+                    ],
+                    zoom: 12
                 }
-            );
+            }
+        );
 
         state.map.addChild(
             new YMapDefaultSchemeLayer()
@@ -297,71 +246,60 @@ async function initMap() {
 
 
         // ----------------------------------------------------
-        // MARKER CLICK
+        // MAP CLICK
         // ----------------------------------------------------
 
         if (YMapListener) {
-            const listener =
-                new YMapListener({
-                    layer: "any",
+            const listener = new YMapListener({
+                layer: "any",
 
-                    onClick: object => {
-                        try {
-                            console.log(
-                                "MAP CLICK:",
-                                object
-                            );
+                onClick: object => {
+                    try {
+                        console.log("MAP CLICK:", object);
 
-                            if (!object) {
-                                return;
-                            }
-
-                            const entity =
-                                object.entity;
-
-                            if (!entity) {
-                                return;
-                            }
-
-                            const element =
-                                entity.element ||
-                                entity._element;
-
-                            if (!element) {
-                                return;
-                            }
-
-                            const id =
-                                element.dataset?.userId;
-
-                            if (!id) {
-                                return;
-                            }
-
-                            centerSelectedUser(
-                                id
-                            );
-
-                        } catch (error) {
-                            console.warn(
-                                "MARKER CLICK ERROR:",
-                                error
-                            );
+                        if (!object) {
+                            return;
                         }
-                    }
-                });
 
-            state.map.addChild(
-                listener
-            );
+                        const entity = object.entity;
+
+                        if (!entity) {
+                            return;
+                        }
+
+                        const element =
+                            entity.element ||
+                            entity._element;
+
+                        if (!element) {
+                            return;
+                        }
+
+                        const id =
+                            element.dataset?.userId;
+
+                        if (!id) {
+                            return;
+                        }
+
+                        centerSelectedUser(id);
+
+                    } catch (error) {
+                        console.warn(
+                            "MARKER CLICK ERROR:",
+                            error
+                        );
+                    }
+                }
+            });
+
+            state.map.addChild(listener);
         }
 
 
         state.mapReady = true;
 
-        console.log(
-            "YANDEX MAP: initialized"
-        );
+        console.log("YANDEX MAP: initialized");
 
         renderMarkers();
 
@@ -374,11 +312,7 @@ async function initMap() {
 }
 
 
-function centerMap(
-    lng,
-    lat,
-    zoom = 17
-) {
+function centerMap(lng, lat, zoom = 17) {
     if (!state.map) {
         return;
     }
@@ -404,10 +338,7 @@ function centerMap(
 // GPS VALIDATION
 // ============================================================
 
-function isInsideUzbekistan(
-    lat,
-    lng
-) {
+function isInsideUzbekistan(lat, lng) {
     return (
         lat >= 37 &&
         lat <= 46 &&
@@ -425,11 +356,8 @@ function distanceMeters(
 ) {
     const R = 6371000;
 
-    const p1 =
-        lat1 * Math.PI / 180;
-
-    const p2 =
-        lat2 * Math.PI / 180;
+    const p1 = lat1 * Math.PI / 180;
+    const p2 = lat2 * Math.PI / 180;
 
     const dp =
         (lat2 - lat1) *
@@ -456,9 +384,7 @@ function distanceMeters(
 }
 
 
-function isGoodGPSPosition(
-    position
-) {
+function isGoodGPSPosition(position) {
     if (
         !position ||
         !position.coords
@@ -467,19 +393,13 @@ function isGoodGPSPosition(
     }
 
     const lat =
-        Number(
-            position.coords.latitude
-        );
+        Number(position.coords.latitude);
 
     const lng =
-        Number(
-            position.coords.longitude
-        );
+        Number(position.coords.longitude);
 
     const accuracy =
-        Number(
-            position.coords.accuracy
-        );
+        Number(position.coords.accuracy);
 
 
     if (
@@ -500,8 +420,6 @@ function isGoodGPSPosition(
     }
 
 
-    // Afrika yoki boshqa qit'a bo‘lsa
-    // qabul qilmaymiz.
     if (
         !isInsideUzbekistan(
             lat,
@@ -521,7 +439,6 @@ function isGoodGPSPosition(
     }
 
 
-    // Juda yomon aniqlik.
     if (
         Number.isFinite(accuracy) &&
         accuracy > 1500
@@ -535,7 +452,6 @@ function isGoodGPSPosition(
     }
 
 
-    // Birdaniga katta sakrashni rad etamiz.
     if (state.lastGoodPosition) {
         const old =
             state.lastGoodPosition;
@@ -561,9 +477,7 @@ function isGoodGPSPosition(
                 newAccuracy * 8
             );
 
-        if (
-            jump > allowed
-        ) {
+        if (jump > allowed) {
             console.warn(
                 "GPS JUMP REJECTED:",
                 {
@@ -585,9 +499,7 @@ function isGoodGPSPosition(
 // ============================================================
 
 function requestCurrentLocation() {
-    if (
-        !navigator.geolocation
-    ) {
+    if (!navigator.geolocation) {
         updateLocationStatus(
             "error",
             "Bu qurilmada GPS mavjud emas."
@@ -596,14 +508,11 @@ function requestCurrentLocation() {
         return;
     }
 
-    if (
-        state.locationRequestInProgress
-    ) {
+    if (state.locationRequestInProgress) {
         return;
     }
 
-    state.locationRequestInProgress =
-        true;
+    state.locationRequestInProgress = true;
 
     updateLocationStatus(
         "waiting",
@@ -612,21 +521,15 @@ function requestCurrentLocation() {
 
     navigator.geolocation.getCurrentPosition(
         position => {
-            state.locationRequestInProgress =
-                false;
+            state.locationRequestInProgress = false;
 
-            handlePosition(
-                position
-            );
+            handlePosition(position);
         },
 
         error => {
-            state.locationRequestInProgress =
-                false;
+            state.locationRequestInProgress = false;
 
-            handleLocationError(
-                error
-            );
+            handleLocationError(error);
         },
 
         {
@@ -639,9 +542,7 @@ function requestCurrentLocation() {
 
 
 function startGPS() {
-    if (
-        !navigator.geolocation
-    ) {
+    if (!navigator.geolocation) {
         updateLocationStatus(
             "error",
             "Telefon GPS funksiyasini qo‘llab-quvvatlamaydi."
@@ -651,15 +552,12 @@ function startGPS() {
     }
 
 
-    if (
-        state.gpsWatchId !== null
-    ) {
+    if (state.gpsWatchId !== null) {
         navigator.geolocation.clearWatch(
             state.gpsWatchId
         );
 
-        state.gpsWatchId =
-            null;
+        state.gpsWatchId = null;
     }
 
 
@@ -669,11 +567,9 @@ function startGPS() {
     );
 
 
-    // Birinchi marta yangi koordinata so‘raymiz.
     requestCurrentLocation();
 
 
-    // Keyin doimiy kuzatamiz.
     state.gpsWatchId =
         navigator.geolocation.watchPosition(
             handlePosition,
@@ -687,9 +583,7 @@ function startGPS() {
 }
 
 
-function handlePosition(
-    position
-) {
+function handlePosition(position) {
     if (
         !position ||
         !position.coords
@@ -723,11 +617,7 @@ function handlePosition(
     );
 
 
-    if (
-        !isGoodGPSPosition(
-            position
-        )
-    ) {
+    if (!isGoodGPSPosition(position)) {
         updateLocationStatus(
             "waiting",
             "GPS noto‘g‘ri joy ko‘rsatmoqda. Yangi signal kutilmoqda..."
@@ -737,29 +627,23 @@ function handlePosition(
     }
 
 
-    const clean =
-        {
-            lat,
-            lng,
-            accuracy:
-                Number.isFinite(
-                    accuracy
-                )
-                    ? accuracy
-                    : 0,
-            timestamp:
-                Number(
-                    position.timestamp
-                ) ||
-                Date.now()
-        };
+    const clean = {
+        lat,
+        lng,
+
+        accuracy:
+            Number.isFinite(accuracy)
+                ? accuracy
+                : 0,
+
+        timestamp:
+            Number(position.timestamp) ||
+            Date.now()
+    };
 
 
-    state.currentPosition =
-        clean;
-
-    state.lastGoodPosition =
-        clean;
+    state.currentPosition = clean;
+    state.lastGoodPosition = clean;
 
 
     console.log(
@@ -768,11 +652,8 @@ function handlePosition(
     );
 
 
-    if (
-        !state.firstGpsFix
-    ) {
-        state.firstGpsFix =
-            true;
+    if (!state.firstGpsFix) {
+        state.firstGpsFix = true;
 
         centerMap(
             lng,
@@ -790,18 +671,12 @@ function handlePosition(
     );
 
 
-    // O‘zimizni users ichida yangilaymiz.
-    if (
-        state.userId
-    ) {
+    if (state.userId) {
         const id =
-            String(
-                state.userId
-            );
+            String(state.userId);
 
         const old =
-            state.users.get(id) ||
-            {};
+            state.users.get(id) || {};
 
         state.users.set(
             id,
@@ -821,7 +696,8 @@ function handlePosition(
                 accuracy:
                     clean.accuracy,
 
-                isMe: true
+                isMe: true,
+                online: true
             }
         );
     }
@@ -830,23 +706,17 @@ function handlePosition(
     renderMarkers();
     updateMembersUI();
 
-    sendLocationToServer(
-        clean
-    );
+    sendLocationToServer(clean);
 }
 
 
-function handleLocationError(
-    error
-) {
+function handleLocationError(error) {
     console.error(
         "GPS ERROR:",
         error
     );
 
-    if (
-        error?.code === 1
-    ) {
+    if (error?.code === 1) {
         updateLocationStatus(
             "error",
             "Joylashuvga ruxsat berilmagan. Brauzerda Location/Joylashuvni yoqing."
@@ -855,10 +725,7 @@ function handleLocationError(
         return;
     }
 
-
-    if (
-        error?.code === 2
-    ) {
+    if (error?.code === 2) {
         updateLocationStatus(
             "error",
             "GPS signal topilmadi. Telefonda Location xizmatini yoqing."
@@ -867,10 +734,7 @@ function handleLocationError(
         return;
     }
 
-
-    if (
-        error?.code === 3
-    ) {
+    if (error?.code === 3) {
         updateLocationStatus(
             "waiting",
             "GPS javobi kechikmoqda. Qayta urinilmoqda..."
@@ -878,7 +742,6 @@ function handleLocationError(
 
         return;
     }
-
 
     updateLocationStatus(
         "error",
@@ -889,50 +752,205 @@ function handleLocationError(
 
 // ============================================================
 // SERVER LOCATION
+// MUHIM: SERVER BIR NECHTA FORMATNI QABUL QILISHI UCHUN
 // ============================================================
 
-function sendLocationToServer(
-    position
-) {
+function sendLocationToServer(position) {
     if (
         !state.ws ||
-        state.ws.readyState !==
-        WebSocket.OPEN
+        state.ws.readyState !== WebSocket.OPEN
     ) {
-        return;
+        console.warn(
+            "LOCATION SEND: WebSocket ochiq emas"
+        );
+
+        return false;
     }
 
     if (!state.roomCode) {
-        return;
+        console.warn(
+            "LOCATION SEND: roomCode yo‘q"
+        );
+
+        return false;
     }
 
     if (!position) {
-        return;
+        return false;
     }
+
+
+    const lat =
+        Number(position.lat);
+
+    const lng =
+        Number(position.lng);
+
+    const accuracy =
+        Number(position.accuracy);
+
+
+    if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng)
+    ) {
+        console.warn(
+            "LOCATION SEND: noto‘g‘ri GPS",
+            position
+        );
+
+        return false;
+    }
+
+
+    /*
+     * Muhim:
+     *
+     * Eski server faqat lat/lng kutishi mumkin.
+     * Boshqa versiya latitude/longitude kutishi mumkin.
+     *
+     * Shuning uchun ikkalasini ham yuboramiz.
+     */
+
+    const payload = {
+        type: "location",
+
+        lat,
+        lng,
+
+        latitude: lat,
+        longitude: lng,
+
+        accuracy:
+            Number.isFinite(accuracy)
+                ? accuracy
+                : 0
+    };
+
+
+    console.log(
+        "GPS → SERVER:",
+        payload
+    );
 
 
     try {
         state.ws.send(
-            JSON.stringify({
-                type: "location",
-
-                lat:
-                    position.lat,
-
-                lng:
-                    position.lng,
-
-                accuracy:
-                    position.accuracy || 0
-            })
+            JSON.stringify(payload)
         );
+
+        return true;
 
     } catch (error) {
         console.error(
             "LOCATION SEND ERROR:",
             error
         );
+
+        return false;
     }
+}
+
+
+// ============================================================
+// USER DATA NORMALIZER
+// ============================================================
+
+function normalizeUser(raw, fallback = {}) {
+    if (!raw || typeof raw !== "object") {
+        return null;
+    }
+
+
+    const merged = {
+        ...fallback,
+        ...raw
+    };
+
+
+    const idValue =
+        merged.id ??
+        merged.userId ??
+        merged.uid ??
+        fallback.id ??
+        "";
+
+
+    const id =
+        String(idValue).trim();
+
+
+    if (!id) {
+        return null;
+    }
+
+
+    /*
+     * Server turli nomlarda koordinata qaytarishi mumkin.
+     */
+
+    let lat =
+        merged.lat ??
+        merged.latitude ??
+        merged.location?.lat ??
+        merged.location?.latitude;
+
+    let lng =
+        merged.lng ??
+        merged.lon ??
+        merged.longitude ??
+        merged.location?.lng ??
+        merged.location?.lon ??
+        merged.location?.longitude;
+
+
+    lat = Number(lat);
+    lng = Number(lng);
+
+
+    let accuracy =
+        merged.accuracy ??
+        merged.location?.accuracy;
+
+
+    accuracy = Number(accuracy);
+
+
+    const name =
+        merged.name ??
+        merged.userName ??
+        merged.username ??
+        merged.displayName ??
+        fallback.name ??
+        "Foydalanuvchi";
+
+
+    return {
+        ...merged,
+
+        id,
+
+        name:
+            String(name || "Foydalanuvchi"),
+
+        lat:
+            Number.isFinite(lat)
+                ? lat
+                : null,
+
+        lng:
+            Number.isFinite(lng)
+                ? lng
+                : null,
+
+        accuracy:
+            Number.isFinite(accuracy)
+                ? accuracy
+                : 0,
+
+        online:
+            merged.online !== false
+    };
 }
 
 
@@ -940,13 +958,9 @@ function sendLocationToServer(
 // MARKERS
 // ============================================================
 
-function createMarkerElement(
-    user
-) {
+function createMarkerElement(user) {
     const wrapper =
-        document.createElement(
-            "div"
-        );
+        document.createElement("div");
 
     wrapper.className =
         "gps-marker " +
@@ -981,16 +995,13 @@ function createMarkerElement(
     `;
 
 
-    // Telefon / oddiy browser fallback.
     wrapper.addEventListener(
         "click",
         event => {
             event.preventDefault();
             event.stopPropagation();
 
-            centerSelectedUser(
-                user.id
-            );
+            centerSelectedUser(user.id);
         },
         true
     );
@@ -1002,9 +1013,7 @@ function createMarkerElement(
             event.preventDefault();
             event.stopPropagation();
 
-            centerSelectedUser(
-                user.id
-            );
+            centerSelectedUser(user.id);
         },
         true
     );
@@ -1023,11 +1032,17 @@ function renderMarkers() {
         return;
     }
 
+
     const {
         YMapMarker
     } = ymaps3;
 
+
     if (!YMapMarker) {
+        console.error(
+            "YMapMarker mavjud emas"
+        );
+
         return;
     }
 
@@ -1037,53 +1052,53 @@ function renderMarkers() {
 
 
     for (
-        const [
-            id,
-            user
-        ] of state.users
+        const [id, user]
+        of state.users
     ) {
         const userId =
             String(id);
 
+
         const lat =
-            Number(
-                user.lat
-            );
+            Number(user.lat);
 
         const lng =
-            Number(
-                user.lng
-            );
+            Number(user.lng);
 
 
         if (
             !Number.isFinite(lat) ||
             !Number.isFinite(lng)
         ) {
+            console.warn(
+                "MARKER SKIPPED — GPS YO‘Q:",
+                user
+            );
+
             continue;
         }
 
 
-        // Noto‘g‘ri qit'ani marker qilmaymiz.
         if (
             !isInsideUzbekistan(
                 lat,
                 lng
             )
         ) {
+            console.warn(
+                "MARKER GPS REJECTED:",
+                user
+            );
+
             continue;
         }
 
 
-        validIds.add(
-            userId
-        );
+        validIds.add(userId);
 
 
         let marker =
-            state.markers.get(
-                userId
-            );
+            state.markers.get(userId);
 
 
         if (!marker) {
@@ -1106,9 +1121,7 @@ function renderMarkers() {
                 );
 
 
-            state.map.addChild(
-                marker
-            );
+            state.map.addChild(marker);
 
 
             state.markers.set(
@@ -1122,6 +1135,17 @@ function renderMarkers() {
                 element
             );
 
+
+            console.log(
+                "MARKER CREATED:",
+                {
+                    id: userId,
+                    name: user.name,
+                    lat,
+                    lng
+                }
+            );
+
         } else {
             try {
                 marker.update({
@@ -1130,6 +1154,7 @@ function renderMarkers() {
                         lat
                     ]
                 });
+
             } catch (error) {
                 console.warn(
                     "MARKER UPDATE ERROR:",
@@ -1149,9 +1174,7 @@ function renderMarkers() {
                     "gps-marker " +
                     (
                         userId ===
-                        String(
-                            state.userId
-                        )
+                        String(state.userId)
                             ? "me"
                             : "other"
                     );
@@ -1173,12 +1196,10 @@ function renderMarkers() {
     }
 
 
-    // Eski markerlarni o‘chirish.
+    // Eski markerlarni olib tashlash.
     for (
-        const [
-            id,
-            marker
-        ] of state.markers
+        const [id, marker]
+        of state.markers
     ) {
         if (
             !validIds.has(
@@ -1189,6 +1210,7 @@ function renderMarkers() {
                 state.map.removeChild(
                     marker
                 );
+
             } catch (error) {
                 console.warn(
                     "MARKER REMOVE ERROR:",
@@ -1197,13 +1219,8 @@ function renderMarkers() {
             }
 
 
-            state.markers.delete(
-                id
-            );
-
-            state.markerElements.delete(
-                id
-            );
+            state.markers.delete(id);
+            state.markerElements.delete(id);
         }
     }
 }
@@ -1213,16 +1230,13 @@ function renderMarkers() {
 // SELECT USER
 // ============================================================
 
-function centerSelectedUser(
-    userId
-) {
+function centerSelectedUser(userId) {
     const id =
         String(userId);
 
+
     const user =
-        state.users.get(
-            id
-        );
+        state.users.get(id);
 
 
     if (!user) {
@@ -1236,20 +1250,21 @@ function centerSelectedUser(
 
 
     const lat =
-        Number(
-            user.lat
-        );
+        Number(user.lat);
 
     const lng =
-        Number(
-            user.lng
-        );
+        Number(user.lng);
 
 
     if (
         !Number.isFinite(lat) ||
         !Number.isFinite(lng)
     ) {
+        console.warn(
+            "USER GPS MAVJUD EMAS:",
+            user
+        );
+
         return;
     }
 
@@ -1278,9 +1293,7 @@ function centerSelectedUser(
 
 
     const selected =
-        state.markerElements.get(
-            id
-        );
+        state.markerElements.get(id);
 
 
     if (selected) {
@@ -1322,9 +1335,7 @@ function updateMembersUI() {
 
     if (count) {
         count.textContent =
-            String(
-                users.length
-            );
+            String(users.length);
     }
 
 
@@ -1342,117 +1353,115 @@ function updateMembersUI() {
     }
 
 
-    users.forEach(
-        user => {
-            const item =
-                document.createElement(
-                    "div"
-                );
+    users.forEach(user => {
+        const item =
+            document.createElement("div");
 
 
-            item.className =
-                "member-item";
+        item.className =
+            "member-item";
 
 
-            item.dataset.userId =
-                String(user.id);
+        item.dataset.userId =
+            String(user.id);
 
 
-            const isMe =
-                String(user.id) ===
-                String(state.userId);
+        const isMe =
+            String(user.id) ===
+            String(state.userId);
 
 
-            item.innerHTML = `
-                <div class="member-avatar">
-                    ${escapeHTML(
-                        String(
-                            user.name ||
-                            "?"
-                        )
-                            .charAt(0)
-                            .toUpperCase()
-                    )}
-                </div>
-
-                <div class="member-info">
-                    <div class="member-name">
-                        ${escapeHTML(
-                            user.name ||
-                            "Foydalanuvchi"
-                        )}
-                        ${
-                            isMe
-                                ? " <span>(Siz)</span>"
-                                : ""
-                        }
-                    </div>
-
-                    <div class="member-location">
-                        ${
-                            Number.isFinite(
-                                Number(
-                                    user.lat
-                                )
-                            )
-                                ? "📍 Joylashuv mavjud"
-                                : "⏳ Joylashuv kutilmoqda"
-                        }
-                    </div>
-                </div>
-            `;
-
-
-            item.addEventListener(
-                "click",
-                () => {
-                    centerSelectedUser(
-                        user.id
-                    );
-                }
+        const hasLocation =
+            Number.isFinite(
+                Number(user.lat)
+            ) &&
+            Number.isFinite(
+                Number(user.lng)
             );
 
 
-            item.addEventListener(
-                "touchend",
-                event => {
+        item.innerHTML = `
+            <div class="member-avatar">
+                ${escapeHTML(
+                    String(
+                        user.name || "?"
+                    )
+                        .charAt(0)
+                        .toUpperCase()
+                )}
+            </div>
+
+            <div class="member-info">
+                <div class="member-name">
+                    ${escapeHTML(
+                        user.name ||
+                        "Foydalanuvchi"
+                    )}
+                    ${
+                        isMe
+                            ? " <span>(Siz)</span>"
+                            : ""
+                    }
+                </div>
+
+                <div class="member-location">
+                    ${
+                        hasLocation
+                            ? "📍 Joylashuv mavjud"
+                            : "⏳ Joylashuv kutilmoqda"
+                    }
+                </div>
+            </div>
+        `;
+
+
+        item.addEventListener(
+            "click",
+            () => {
+                centerSelectedUser(
+                    user.id
+                );
+            }
+        );
+
+
+        item.addEventListener(
+            "touchend",
+            event => {
+                event.preventDefault();
+
+                centerSelectedUser(
+                    user.id
+                );
+            },
+            {
+                passive: false
+            }
+        );
+
+
+        item.tabIndex = 0;
+
+
+        item.addEventListener(
+            "keydown",
+            event => {
+                if (
+                    event.key === "Enter" ||
+                    event.key === " "
+                ) {
                     event.preventDefault();
 
                     centerSelectedUser(
                         user.id
                     );
-                },
-                {
-                    passive: false
                 }
-            );
+            }
+        );
 
 
-            item.tabIndex = 0;
-
-
-            item.addEventListener(
-                "keydown",
-                event => {
-                    if (
-                        event.key === "Enter" ||
-                        event.key === " "
-                    ) {
-                        event.preventDefault();
-
-                        centerSelectedUser(
-                            user.id
-                        );
-                    }
-                }
-            );
-
-
-            list.appendChild(
-                item
-            );
-        }
-    );
+        list.appendChild(item);
+    });
 }
 
 
@@ -1460,122 +1469,155 @@ function updateMembersUI() {
 // SERVER USERS
 // ============================================================
 
-function handleUsers(
-    serverUsers
-) {
+function handleUsers(serverUsers) {
+    /*
+     * Ba'zi serverlar:
+     *
+     * [
+     *   {...},
+     *   {...}
+     * ]
+     *
+     * qaytaradi.
+     *
+     * Ba'zilari esa:
+     *
+     * {
+     *   id1: {...},
+     *   id2: {...}
+     * }
+     *
+     * qaytarishi mumkin.
+     */
+
     if (
-        !Array.isArray(
-            serverUsers
-        )
+        serverUsers &&
+        !Array.isArray(serverUsers) &&
+        typeof serverUsers === "object"
     ) {
+        serverUsers =
+            Object.values(serverUsers);
+    }
+
+
+    if (!Array.isArray(serverUsers)) {
+        console.warn(
+            "USERS ARRAY EMAS:",
+            serverUsers
+        );
+
         return;
     }
+
+
+    console.log(
+        "USERS PAYLOAD:",
+        serverUsers
+    );
 
 
     const next =
         new Map();
 
 
-    serverUsers.forEach(
-        raw => {
-            if (!raw) {
-                return;
-            }
+    serverUsers.forEach(raw => {
+        const normalized =
+            normalizeUser(raw);
 
 
-            const id =
-                String(
-                    raw.id ??
-                    raw.userId ??
-                    ""
-                );
+        if (!normalized) {
+            return;
+        }
 
 
-            if (!id) {
-                return;
-            }
+        const id =
+            normalized.id;
 
 
-            const lat =
-                Number(
-                    raw.lat
-                );
+        const lat =
+            Number(normalized.lat);
 
-            const lng =
-                Number(
-                    raw.lng
-                );
+        const lng =
+            Number(normalized.lng);
 
 
-            if (
-                !Number.isFinite(lat) ||
-                !Number.isFinite(lng)
-            ) {
-                next.set(
-                    id,
-                    {
-                        ...raw,
-                        id
-                    }
-                );
+        /*
+         * Agar serverda GPS null bo‘lsa,
+         * foydalanuvchini o‘chirib yubormaymiz.
+         *
+         * Bu foydalanuvchi online ekanini
+         * members listda ko‘rsatishga imkon beradi.
+         */
 
-                return;
-            }
-
-
-            // Server noto‘g‘ri joy yuborsa
-            // frontend uni ko‘rsatmaydi.
-            if (
-                !isInsideUzbekistan(
-                    lat,
-                    lng
-                )
-            ) {
-                console.warn(
-                    "SERVER GPS REJECTED:",
-                    raw
-                );
-
-                return;
-            }
+        if (
+            !Number.isFinite(lat) ||
+            !Number.isFinite(lng)
+        ) {
+            console.warn(
+                "SERVER GPS REJECTED:",
+                normalized
+            );
 
 
             next.set(
                 id,
-                {
-                    ...raw,
-
-                    id,
-                    lat,
-                    lng,
-
-                    accuracy:
-                        Number(
-                            raw.accuracy
-                        ) || 0
-                }
+                normalized
             );
+
+            return;
         }
-    );
 
 
-    // O‘zimizning yangi GPS koordinatamiz.
+        if (
+            !isInsideUzbekistan(
+                lat,
+                lng
+            )
+        ) {
+            console.warn(
+                "SERVER GPS REJECTED — OUTSIDE UZBEKISTAN:",
+                normalized
+            );
+
+            return;
+        }
+
+
+        next.set(
+            id,
+            {
+                ...normalized,
+
+                id,
+
+                lat,
+                lng,
+
+                accuracy:
+                    Number(normalized.accuracy) || 0
+            }
+        );
+    });
+
+
+    // --------------------------------------------------------
+    // O‘ZIMIZNING GPS KOORDINATAMIZ
+    // --------------------------------------------------------
+
     if (
         state.userId &&
         state.currentPosition
     ) {
         const myId =
-            String(
-                state.userId
-            );
+            String(state.userId);
+
 
         const pos =
             state.currentPosition;
 
+
         const old =
-            next.get(
-                myId
-            );
+            next.get(myId);
 
 
         next.set(
@@ -1590,23 +1632,261 @@ function handleUsers(
                     old?.name ||
                     "Men",
 
-                lat:
-                    pos.lat,
-
-                lng:
-                    pos.lng,
+                lat: pos.lat,
+                lng: pos.lng,
 
                 accuracy:
                     pos.accuracy,
 
-                isMe: true
+                isMe: true,
+                online: true
             }
         );
     }
 
 
-    state.users =
-        next;
+    state.users = next;
+
+
+    console.log(
+        "NORMALIZED USERS:",
+        Array.from(
+            state.users.values()
+        )
+    );
+
+
+    renderMarkers();
+    updateMembersUI();
+}
+
+
+// ============================================================
+// SERVER LOCATION NORMALIZER
+// ============================================================
+
+function handleIncomingLocation(data) {
+    if (!data) {
+        return;
+    }
+
+
+    /*
+     * Server quyidagi formatlarning istalganini
+     * yuborishi mumkin:
+     *
+     * {
+     *   type: "location",
+     *   id,
+     *   name,
+     *   lat,
+     *   lng
+     * }
+     *
+     * yoki:
+     *
+     * {
+     *   type: "location",
+     *   user: {
+     *      id,
+     *      lat,
+     *      lng
+     *   }
+     * }
+     *
+     * yoki:
+     *
+     * {
+     *   type: "location",
+     *   member: {...}
+     * }
+     */
+
+
+    const raw =
+        data.user ||
+        data.member ||
+        data.location ||
+        data;
+
+
+    const fallback = {
+        id:
+            data.userId ??
+            data.id,
+
+        name:
+            data.name ??
+            data.userName,
+
+        lat:
+            data.lat ??
+            data.latitude,
+
+        lng:
+            data.lng ??
+            data.longitude,
+
+        accuracy:
+            data.accuracy
+    };
+
+
+    const normalized =
+        normalizeUser(
+            raw,
+            fallback
+        );
+
+
+    if (!normalized) {
+        console.warn(
+            "LOCATION USER ANIQLANMADI:",
+            data
+        );
+
+        return;
+    }
+
+
+    /*
+     * Agar nested objectda koordinata bo‘lmasa,
+     * top-level koordinatani alohida ishlatamiz.
+     */
+
+    if (
+        !Number.isFinite(
+            Number(normalized.lat)
+        )
+    ) {
+        normalized.lat =
+            Number(
+                data.lat ??
+                data.latitude ??
+                data.user?.lat ??
+                data.user?.latitude
+            );
+    }
+
+
+    if (
+        !Number.isFinite(
+            Number(normalized.lng)
+        )
+    ) {
+        normalized.lng =
+            Number(
+                data.lng ??
+                data.longitude ??
+                data.user?.lng ??
+                data.user?.longitude
+            );
+    }
+
+
+    const lat =
+        Number(normalized.lat);
+
+    const lng =
+        Number(normalized.lng);
+
+
+    console.log(
+        "NORMALIZED LOCATION:",
+        {
+            ...normalized,
+            lat,
+            lng
+        }
+    );
+
+
+    if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng)
+    ) {
+        console.warn(
+            "LIVE GPS REJECTED — NULL COORDINATES:",
+            normalized
+        );
+
+        /*
+         * Agar bu o‘zimiz bo‘lsak,
+         * lokal GPSni saqlab qolamiz.
+         */
+
+        if (
+            normalized.id ===
+            String(state.userId) &&
+            state.currentPosition
+        ) {
+            normalized.lat =
+                state.currentPosition.lat;
+
+            normalized.lng =
+                state.currentPosition.lng;
+
+            normalized.accuracy =
+                state.currentPosition.accuracy;
+
+        } else {
+            state.users.set(
+                normalized.id,
+                normalized
+            );
+
+            updateMembersUI();
+
+            return;
+        }
+    }
+
+
+    const finalLat =
+        Number(normalized.lat);
+
+    const finalLng =
+        Number(normalized.lng);
+
+
+    if (
+        !isInsideUzbekistan(
+            finalLat,
+            finalLng
+        )
+    ) {
+        console.warn(
+            "LIVE LOCATION REJECTED — OUTSIDE UZBEKISTAN:",
+            normalized
+        );
+
+        return;
+    }
+
+
+    state.users.set(
+        normalized.id,
+        {
+            ...normalized,
+
+            id:
+                String(normalized.id),
+
+            lat: finalLat,
+            lng: finalLng,
+
+            accuracy:
+                Number(normalized.accuracy) || 0
+        }
+    );
+
+
+    console.log(
+        "LIVE USER UPDATED:",
+        state.users.get(
+            normalized.id
+        )
+    );
 
 
     renderMarkers();
@@ -1627,8 +1907,7 @@ const WS_URL =
 function sendWS(data) {
     if (
         !state.ws ||
-        state.ws.readyState !==
-        WebSocket.OPEN
+        state.ws.readyState !== WebSocket.OPEN
     ) {
         return false;
     }
@@ -1636,9 +1915,7 @@ function sendWS(data) {
 
     try {
         state.ws.send(
-            JSON.stringify(
-                data
-            )
+            JSON.stringify(data)
         );
 
         return true;
@@ -1659,8 +1936,6 @@ function sendWS(data) {
 // ============================================================
 
 function createRoom() {
-    // MUHIM:
-    // HTML'da ID = userName
     const input =
         $("userName");
 
@@ -1715,14 +1990,9 @@ function createRoom() {
 // ============================================================
 
 function joinRoom() {
-    // MUHIM:
-    // HTML'da ID = userName
     const nameInput =
         $("userName");
 
-
-    // MUHIM:
-    // HTML'da ID = roomCode
     const roomInput =
         $("roomCode");
 
@@ -1811,10 +2081,8 @@ function connectWebSocket() {
     if (
         state.ws &&
         (
-            state.ws.readyState ===
-            WebSocket.OPEN ||
-            state.ws.readyState ===
-            WebSocket.CONNECTING
+            state.ws.readyState === WebSocket.OPEN ||
+            state.ws.readyState === WebSocket.CONNECTING
         )
     ) {
         return;
@@ -1845,15 +2113,10 @@ function connectWebSocket() {
 
 
     state.ws.onopen = () => {
-        state.connected =
-            true;
+        state.connected = true;
+        state.reconnectAttempts = 0;
 
-        state.reconnectAttempts =
-            0;
-
-        updateConnectionUI(
-            true
-        );
+        updateConnectionUI(true);
 
 
         console.log(
@@ -1861,15 +2124,17 @@ function connectWebSocket() {
         );
 
 
-        if (
-            state.pendingAction
-        ) {
+        if (state.pendingAction) {
+            console.log(
+                "SERVER ACTION:",
+                state.pendingAction
+            );
+
             sendWS(
                 state.pendingAction
             );
 
-            state.pendingAction =
-                null;
+            state.pendingAction = null;
         }
 
 
@@ -1877,64 +2142,57 @@ function connectWebSocket() {
     };
 
 
-    state.ws.onmessage =
-        event => {
-            let data;
+    state.ws.onmessage = event => {
+        let data;
 
-            try {
-                data =
-                    JSON.parse(
-                        event.data
-                    );
 
-            } catch (error) {
-                console.warn(
-                    "INVALID SERVER DATA:",
+        try {
+            data =
+                JSON.parse(
                     event.data
                 );
 
-                return;
-            }
-
-
-            console.log(
-                "SERVER:",
-                data
-            );
-
-
-            handleServerMessage(
-                data
-            );
-        };
-
-
-    state.ws.onclose =
-        () => {
-            state.connected =
-                false;
-
-            updateConnectionUI(
-                false
-            );
-
-
+        } catch (error) {
             console.warn(
-                "SERVER: disconnected"
+                "INVALID SERVER DATA:",
+                event.data
             );
 
+            return;
+        }
 
-            scheduleReconnect();
-        };
+
+        console.log(
+            "SERVER:",
+            data
+        );
 
 
-    state.ws.onerror =
-        error => {
-            console.error(
-                "SERVER ERROR:",
-                error
-            );
-        };
+        handleServerMessage(data);
+    };
+
+
+    state.ws.onclose = () => {
+        state.connected = false;
+
+        updateConnectionUI(false);
+
+
+        console.warn(
+            "SERVER: disconnected"
+        );
+
+
+        scheduleReconnect();
+    };
+
+
+    state.ws.onerror = error => {
+        console.error(
+            "SERVER ERROR:",
+            error
+        );
+    };
 }
 
 
@@ -1942,9 +2200,7 @@ function connectWebSocket() {
 // SERVER MESSAGE
 // ============================================================
 
-function handleServerMessage(
-    data
-) {
+function handleServerMessage(data) {
     if (!data) {
         return;
     }
@@ -1958,12 +2214,9 @@ function handleServerMessage(
     // CONNECTED
     // --------------------------------------------------------
 
-    if (
-        type === "connected"
-    ) {
+    if (type === "connected") {
         if (
-            data.userId !==
-            undefined
+            data.userId !== undefined
         ) {
             state.userId =
                 String(
@@ -1993,8 +2246,7 @@ function handleServerMessage(
 
 
         if (
-            data.userId !==
-            undefined
+            data.userId !== undefined
         ) {
             state.userId =
                 String(
@@ -2010,8 +2262,8 @@ function handleServerMessage(
 
 
         showRoom();
-
         updateRoomCodeUI();
+
 
         startGPS();
 
@@ -2038,8 +2290,7 @@ function handleServerMessage(
 
 
         if (
-            data.userId !==
-            undefined
+            data.userId !== undefined
         ) {
             state.userId =
                 String(
@@ -2055,8 +2306,8 @@ function handleServerMessage(
 
 
         showRoom();
-
         updateRoomCodeUI();
+
 
         startGPS();
 
@@ -2069,13 +2320,17 @@ function handleServerMessage(
     // --------------------------------------------------------
 
     if (
-        type === "users"
+        type === "users" ||
+        type === "members"
     ) {
-        handleUsers(
-            data.users ||
-            data.members ||
-            []
-        );
+        const users =
+            data.users ??
+            data.members ??
+            data.data ??
+            [];
+
+
+        handleUsers(users);
 
         return;
     }
@@ -2088,76 +2343,12 @@ function handleServerMessage(
     if (
         type === "location" ||
         type === "user-location" ||
-        type === "user-updated"
+        type === "user_updated" ||
+        type === "user-updated" ||
+        type === "location-update" ||
+        type === "location_updated"
     ) {
-        const raw =
-            data.user ||
-            data.member;
-
-
-        if (!raw) {
-            return;
-        }
-
-
-        const id =
-            String(
-                raw.id ??
-                raw.userId ??
-                data.userId ??
-                ""
-            );
-
-
-        const lat =
-            Number(
-                raw.lat
-            );
-
-        const lng =
-            Number(
-                raw.lng
-            );
-
-
-        if (
-            !id ||
-            !Number.isFinite(lat) ||
-            !Number.isFinite(lng)
-        ) {
-            return;
-        }
-
-
-        if (
-            !isInsideUzbekistan(
-                lat,
-                lng
-            )
-        ) {
-            console.warn(
-                "LIVE LOCATION REJECTED:",
-                raw
-            );
-
-            return;
-        }
-
-
-        state.users.set(
-            id,
-            {
-                ...raw,
-
-                id,
-                lat,
-                lng
-            }
-        );
-
-
-        renderMarkers();
-        updateMembersUI();
+        handleIncomingLocation(data);
 
         return;
     }
@@ -2167,9 +2358,7 @@ function handleServerMessage(
     // ERROR
     // --------------------------------------------------------
 
-    if (
-        type === "error"
-    ) {
+    if (type === "error") {
         const message =
             data.message ||
             "Server xatosi.";
@@ -2187,18 +2376,25 @@ function handleServerMessage(
                 "hidden"
             )
         ) {
-            showRoomError(
-                message
-            );
+            showRoomError(message);
+
         } else {
-            showSetupError(
-                message
-            );
+            showSetupError(message);
         }
 
 
         return;
     }
+
+
+    // --------------------------------------------------------
+    // UNKNOWN MESSAGE
+    // --------------------------------------------------------
+
+    console.log(
+        "SERVER UNKNOWN MESSAGE:",
+        data
+    );
 }
 
 
@@ -2207,9 +2403,7 @@ function handleServerMessage(
 // ============================================================
 
 function scheduleReconnect() {
-    if (
-        state.reconnectTimer
-    ) {
+    if (state.reconnectTimer) {
         return;
     }
 
@@ -2231,11 +2425,15 @@ function scheduleReconnect() {
         );
 
 
+    console.log(
+        `SERVER: ${delay}ms dan keyin qayta ulanadi`
+    );
+
+
     state.reconnectTimer =
         setTimeout(
             () => {
-                state.reconnectTimer =
-                    null;
+                state.reconnectTimer = null;
 
                 connectWebSocket();
             },
@@ -2249,9 +2447,7 @@ function scheduleReconnect() {
 // ============================================================
 
 function centerMyLocation() {
-    if (
-        state.currentPosition
-    ) {
+    if (state.currentPosition) {
         centerMap(
             state.currentPosition.lng,
             state.currentPosition.lat,
@@ -2287,9 +2483,7 @@ function centerAllUsers() {
 
 
     if (!users.length) {
-        if (
-            state.currentPosition
-        ) {
+        if (state.currentPosition) {
             centerMyLocation();
         }
 
@@ -2297,32 +2491,18 @@ function centerAllUsers() {
     }
 
 
-    // Hozircha guruh markazini
-    // o‘rtacha koordinata orqali topamiz.
     let lat = 0;
     let lng = 0;
 
 
-    users.forEach(
-        user => {
-            lat +=
-                Number(
-                    user.lat
-                );
-
-            lng +=
-                Number(
-                    user.lng
-                );
-        }
-    );
+    users.forEach(user => {
+        lat += Number(user.lat);
+        lng += Number(user.lng);
+    });
 
 
-    lat /=
-        users.length;
-
-    lng /=
-        users.length;
+    lat /= users.length;
+    lng /= users.length;
 
 
     centerMap(
@@ -2372,6 +2552,38 @@ function switchRoom() {
     );
 
 
+    /*
+     * Yangi guruhga kirganda eski
+     * a'zolar va markerlarni tozalaymiz.
+     */
+
+    state.users.clear();
+
+
+    for (
+        const marker
+        of state.markers.values()
+    ) {
+        try {
+            state.map?.removeChild(
+                marker
+            );
+        } catch (error) {
+            console.warn(
+                "OLD MARKER REMOVE ERROR:",
+                error
+            );
+        }
+    }
+
+
+    state.markers.clear();
+    state.markerElements.clear();
+
+
+    updateMembersUI();
+
+
     state.pendingAction = {
         type: "join-room",
         room
@@ -2387,8 +2599,7 @@ function switchRoom() {
             state.pendingAction
         );
 
-        state.pendingAction =
-            null;
+        state.pendingAction = null;
 
     } else {
         connectWebSocket();
@@ -2414,6 +2625,7 @@ async function copyRoomCode() {
         await navigator.clipboard.writeText(
             code
         );
+
 
         const text =
             $("copyRoomText");
@@ -2509,7 +2721,13 @@ function restoreSession() {
     } else {
         showSetup();
 
-        initMap();
+        /*
+         * init() ichida map allaqachon
+         * ishga tushirilgan bo‘lishi mumkin.
+         */
+        if (!state.mapReady) {
+            initMap();
+        }
     }
 }
 
@@ -2522,22 +2740,17 @@ function setupButtons() {
     const createBtn =
         $("createRoomBtn");
 
-
     const joinBtn =
         $("joinRoomBtn");
-
 
     const myLocationBtn =
         $("myLocationBtn");
 
-
     const centerMapBtn =
         $("centerMapBtn");
 
-
     const switchBtn =
         $("switchRoomBtn");
-
 
     const copyRoomBtn =
         $("copyRoomBtn");
@@ -2668,11 +2881,9 @@ async function init() {
     setupTheme();
 
 
-    // Xarita tayyorlanadi.
     await initMap();
 
 
-    // Saqlangan ism/guruhni tekshiramiz.
     restoreSession();
 }
 
