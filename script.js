@@ -2251,40 +2251,26 @@ function sendName() {
 
 function renderUsers() {
 
-    const list =
-        $("membersList");
+    const list = $("membersList");
+    const count = $("membersCount");
 
-    const count =
-        $("membersCount");
-
-
-    const onlineUsers =
-        users.filter(
-            user =>
-                user.online
-        );
-
+    const onlineUsers = users.filter(
+        user => user.online
+    );
 
     if (count) {
-
-        count.textContent =
-            String(
-                onlineUsers.length
-            );
+        count.textContent = String(
+            onlineUsers.length
+        );
     }
-
 
     if (!list) {
         return;
     }
 
-
     list.innerHTML = "";
 
-
-    if (
-        users.length === 0
-    ) {
+    if (users.length === 0) {
 
         list.innerHTML = `
             <div class="empty-members">
@@ -2295,59 +2281,40 @@ function renderUsers() {
         return;
     }
 
-
     users.forEach(user => {
 
         const item =
             document.createElement("div");
 
-
         item.className =
             "member-item";
-
 
         const isMe =
             String(user.id) ===
             String(currentUserId);
-
 
         const onlineClass =
             user.online
                 ? "online"
                 : "offline";
 
-
         const statusText =
             user.online
                 ? "Online"
                 : "Offline";
 
-
         let distanceText = "";
-
 
         if (isMe) {
 
-            distanceText =
-                "Siz";
+            distanceText = "Siz";
 
         } else if (
 
-            Number.isFinite(
-                Number(user.lat)
-            ) &&
-
-            Number.isFinite(
-                Number(user.lng)
-            ) &&
-
-            Number.isFinite(
-                myLatitude
-            ) &&
-
-            Number.isFinite(
-                myLongitude
-            )
+            Number.isFinite(Number(user.lat)) &&
+            Number.isFinite(Number(user.lng)) &&
+            Number.isFinite(myLatitude) &&
+            Number.isFinite(myLongitude)
 
         ) {
 
@@ -2355,38 +2322,31 @@ function renderUsers() {
                 calculateDistance(
 
                     myLatitude,
-
                     myLongitude,
 
                     Number(user.lat),
-
                     Number(user.lng)
                 );
 
-
             distanceText =
-                formatDistance(
-                    distance
-                );
+                formatDistance(distance);
         }
 
-
-        /*
-         * Offline user uchun
-         * oxirgi joylashuv mavjudligini ko‘rsatamiz.
-         */
+        const hasLocation =
+            Number.isFinite(Number(user.lat)) &&
+            Number.isFinite(Number(user.lng));
 
         const locationText =
             !isMe &&
             !user.online &&
-            Number.isFinite(Number(user.lat)) &&
-            Number.isFinite(Number(user.lng))
+            hasLocation
+
                 ? "Oxirgi joylashuv saqlangan"
+
                 : (
                     distanceText ||
                     statusText
                 );
-
 
         item.innerHTML = `
             <div class="member-avatar">
@@ -2434,11 +2394,141 @@ function renderUsers() {
             </span>
         `;
 
+        /*
+         * A'zo ustiga bosilganda
+         * uning joylashuviga boramiz.
+         */
+        item.addEventListener(
+            "click",
+            () => {
+
+                centerMapOnUser(user);
+
+            }
+        );
+
+function centerMapOnUser(user) {
+
+    if (!user) {
+        return;
+    }
+
+    const lat =
+        Number(user.lat);
+
+    const lng =
+        Number(user.lng);
+
+    if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng)
+    ) {
+
+        showRoomError(
+            "Bu foydalanuvchining joylashuvi hali mavjud emas."
+        );
+
+        setTimeout(() => {
+            clearRoomError();
+        }, 2500);
+
+        return;
+    }
+
+    /*
+     * Xarita hali tayyor bo‘lmasa,
+     * avval ishga tushiramiz.
+     */
+    if (!map) {
+
+        initMap();
+
+        setTimeout(() => {
+
+            centerMapOnUser(user);
+
+        }, 400);
+
+        return;
+    }
+
+    const position = [
+        lng,
+        lat
+    ];
+
+    try {
+
+        map.setLocation({
+
+            center:
+                position,
+
+            zoom:
+                16,
+
+            duration:
+                650
+
+        });
+
+    } catch (error) {
+
+        console.error(
+            "User center error:",
+            error
+        );
+    }
+
+    /*
+     * Shu odamning markerida ismni ochamiz.
+     */
+    const id =
+        String(user.id);
+
+    const markerData =
+        userMarkers.get(id);
+
+    if (markerData) {
+
+        markerData.element.classList.add(
+            "gps-marker-selected"
+        );
+
+        /*
+         * Boshqa markerlarning ochilgan
+         * ismini yopamiz.
+         */
+        userMarkers.forEach(
+            (data, markerId) => {
+
+                if (
+                    markerId !== id
+                ) {
+
+                    data.element.classList.remove(
+                        "gps-marker-selected"
+                    );
+                }
+            }
+        );
+    }
+}
+       
+        /*
+         * Joylashuvi yo‘q odam uchun
+         * bosilganda hech narsa qilmaymiz.
+         */
+        if (!hasLocation) {
+
+            item.classList.add(
+                "member-no-location"
+            );
+        }
 
         list.appendChild(item);
     });
 }
-
 
 /* =========================================================
    DISTANCE
@@ -2688,42 +2778,34 @@ function createMarkerElement(
     const element =
         document.createElement("div");
 
-
     const online =
+        isMe ||
         user.online !== false;
-
 
     element.className =
         isMe
             ? "gps-premium-marker gps-premium-marker-me"
             : "gps-premium-marker";
 
-
     const name =
-        escapeHtml(
+        user.name ||
+        (
+            isMe
+                ? "Siz"
+                : "Noma'lum"
+        );
+
+    const initial =
+        (
             user.name ||
             (
                 isMe
-                    ? "Siz"
-                    : "Noma'lum"
+                    ? "S"
+                    : "N"
             )
-        );
-
-
-    const initial =
-        escapeHtml(
-            (
-                user.name ||
-                (
-                    isMe
-                        ? "S"
-                        : "N"
-                )
-            )
-                .charAt(0)
-                .toUpperCase()
-        );
-
+        )
+            .charAt(0)
+            .toUpperCase();
 
     const statusText =
         isMe
@@ -2734,8 +2816,8 @@ function createMarkerElement(
                     : "Offline"
             );
 
-
     element.innerHTML = `
+
         <div class="gps-marker-wrapper">
 
             <div class="gps-marker-card">
@@ -2743,7 +2825,7 @@ function createMarkerElement(
                 <div class="gps-marker-avatar">
 
                     <span>
-                        ${initial}
+                        ${escapeHtml(initial)}
                     </span>
 
                     <i
@@ -2758,11 +2840,11 @@ function createMarkerElement(
                 <div class="gps-marker-content">
 
                     <div class="gps-marker-name">
-                        ${name}
+                        ${escapeHtml(name)}
                     </div>
 
                     <div class="gps-marker-status">
-                        ${statusText}
+                        ${escapeHtml(statusText)}
                     </div>
 
                 </div>
@@ -2778,6 +2860,61 @@ function createMarkerElement(
         </div>
     `;
 
+    /*
+     * Marker bosilganda ismni ko‘rsatish/yashirish.
+     */
+    element.addEventListener(
+        "click",
+        event => {
+
+            event.stopPropagation();
+
+            const wasSelected =
+                element.classList.contains(
+                    "gps-marker-selected"
+                );
+
+            /*
+             * Boshqa markerlarning
+             * ochilgan nomlarini yopamiz.
+             */
+            if (isMe) {
+
+                userMarkers.forEach(
+                    data => {
+
+                        data.element.classList.remove(
+                            "gps-marker-selected"
+                        );
+
+                    }
+                );
+
+            } else {
+
+                userMarkers.forEach(
+                    data => {
+
+                        data.element.classList.remove(
+                            "gps-marker-selected"
+                        );
+
+                    }
+                );
+            }
+
+            /*
+             * Agar avval yopiq bo‘lgan bo‘lsa,
+             * ochamiz.
+             */
+            if (!wasSelected) {
+
+                element.classList.add(
+                    "gps-marker-selected"
+                );
+            }
+        }
+    );
 
     return element;
 }
