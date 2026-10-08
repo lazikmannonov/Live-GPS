@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 
-<html lang="uz"> <head>
-
-<meta charset="UTF-8">
+<html lang="uz"> <head> <meta charset="UTF-8">
 
 <meta
     name="viewport"
@@ -11,7 +9,6 @@
 
 <title>Live GPS — Real-time Location</title>
 
-<!-- GOOGLE FONTS -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
@@ -25,7 +22,6 @@
     src="https://api-maps.yandex.ru/v3/?apikey=fefa16f6-1dcb-4862-80eb-e59209bd56f5&lang=uz_UZ"
 ></script>
 
-<!-- APP CSS -->
 <link rel="stylesheet" href="style.css">
 
 </head>
@@ -33,8 +29,6 @@
 <body>
 
 <div class="ambient ambient-1"></div> <div class="ambient ambient-2"></div>
-
-<!-- TOPBAR -->
 
 <header class="topbar">
 
@@ -45,15 +39,8 @@
     </div>
 
     <div class="brand-text">
-
-        <strong>
-            Live GPS
-        </strong>
-
-        <small>
-            Real-time location
-        </small>
-
+        <strong>Live GPS</strong>
+        <small>Real-time location</small>
     </div>
 
 </div>
@@ -64,13 +51,11 @@
         id="connectionPill"
         class="connection-pill offline"
     >
-
         <span class="connection-dot"></span>
 
         <span id="connectionText">
             Offline
         </span>
-
     </div>
 
     <button
@@ -80,22 +65,18 @@
         title="Mavzuni almashtirish"
         aria-label="Mavzuni almashtirish"
     >
-
-        <span id="themeIcon">
-            ☾
-        </span>
-
+        <span id="themeIcon">☾</span>
     </button>
 
 </div>
 
 </header>
 
-<!-- MAIN -->
-
 <main class="page">
 
-<!-- SETUP CARD -->
+<!-- ================================================= -->
+<!-- SETUP -->
+<!-- ================================================= -->
 
 <section
     id="setupCard"
@@ -103,11 +84,8 @@
 >
 
     <div class="hero-badge">
-
         <span class="hero-badge-dot"></span>
-
         LIVE LOCATION
-
     </div>
 
 
@@ -116,9 +94,7 @@
         <h1>
             Joylashuvingizni
             <br>
-            <span>
-                real vaqtda ulashing.
-            </span>
+            <span>real vaqtda ulashing.</span>
         </h1>
 
         <p>
@@ -159,7 +135,7 @@
         </div>
 
 
-        <!-- CREATE ROOM -->
+        <!-- CREATE -->
 
         <button
             id="createRoomBtn"
@@ -182,16 +158,10 @@
         </button>
 
 
-        <!-- DIVIDER -->
-
         <div class="or-divider">
-
             <span></span>
-
             yoki
-
             <span></span>
-
         </div>
 
 
@@ -224,7 +194,7 @@
         </div>
 
 
-        <!-- JOIN ROOM -->
+        <!-- JOIN -->
 
         <button
             id="joinRoomBtn"
@@ -243,7 +213,7 @@
         </button>
 
 
-        <!-- SETUP ERROR -->
+        <!-- ERROR -->
 
         <div
             id="setupError"
@@ -251,6 +221,47 @@
             role="alert"
             aria-live="polite"
         ></div>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- SAVED GROUPS -->
+    <!-- ================================================= -->
+
+    <div
+        id="savedGroupsSection"
+        class="saved-groups-section"
+    >
+
+        <div class="section-heading">
+
+            <div>
+                <h3>Saqlangan guruhlar</h3>
+
+                <span>
+                    Oldin kirilgan guruhlar
+                </span>
+            </div>
+
+            <div
+                id="savedGroupsCount"
+                class="member-count"
+            >
+                0
+            </div>
+
+        </div>
+
+
+        <div
+            id="savedGroupsList"
+            class="saved-groups-list"
+        >
+            <div class="empty-members">
+                Hozircha saqlangan guruh yo‘q.
+            </div>
+        </div>
 
     </div>
 
@@ -266,15 +277,11 @@
             </div>
 
             <div>
-
-                <strong>
-                    Real vaqt
-                </strong>
+                <strong>Real vaqt</strong>
 
                 <span>
                     Joylashuvlar tez yangilanadi
                 </span>
-
             </div>
 
         </div>
@@ -287,15 +294,11 @@
             </div>
 
             <div>
-
-                <strong>
-                    Guruhli
-                </strong>
+                <strong>Guruhli</strong>
 
                 <span>
                     Bir nechta odam bilan ishlaydi
                 </span>
-
             </div>
 
         </div>
@@ -308,15 +311,11 @@
             </div>
 
             <div>
-
-                <strong>
-                    Oddiy
-                </strong>
+                <strong>Oddiy</strong>
 
                 <span>
                     Kod orqali tez ulanish
                 </span>
-
             </div>
 
         </div>
@@ -326,32 +325,27 @@
 </section>
 
 
-<!-- ROOM CARD -->
+<!-- ================================================= -->
+<!-- ROOM -->
+<!-- ================================================= -->
 
 <section
     id="roomCard"
     class="room-card hidden"
 >
 
-    <!-- ROOM HEADER -->
-
     <div class="room-top">
 
         <div>
 
             <div class="room-label">
-
                 <span class="live-dot"></span>
-
                 FAOL GURUH
-
             </div>
-
 
             <h2 id="currentRoomCode">
                 ------
             </h2>
-
 
             <div class="room-code-sub">
                 Ushbu kodni guruh a'zolariga yuboring
@@ -366,9 +360,7 @@
             type="button"
         >
 
-            <span>
-                ⧉
-            </span>
+            <span>⧉</span>
 
             <span id="copyRoomText">
                 Nusxalash
@@ -389,18 +381,12 @@
                 ●
             </div>
 
-
             <div>
-
-                <span>
-                    Aloqa
-                </span>
-
+                <span>Aloqa</span>
 
                 <strong id="connectionStatus">
                     Ulanmoqda...
                 </strong>
-
             </div>
 
         </div>
@@ -412,18 +398,12 @@
                 ⌖
             </div>
 
-
             <div>
-
-                <span>
-                    GPS
-                </span>
-
+                <span>GPS</span>
 
                 <strong id="locationStatus">
                     Kutilmoqda...
                 </strong>
-
             </div>
 
         </div>
@@ -431,7 +411,7 @@
     </div>
 
 
-    <!-- YANDEX MAP -->
+    <!-- MAP -->
 
     <div class="map-wrapper">
 
@@ -443,29 +423,20 @@
                     ⌖
                 </div>
 
-
                 <div>
-
-                    <strong>
-                        Live xarita
-                    </strong>
-
+                    <strong>Live xarita</strong>
 
                     <span>
                         Real-time locations
                     </span>
-
                 </div>
 
             </div>
 
 
             <div class="map-live">
-
                 <span></span>
-
                 LIVE
-
             </div>
 
         </div>
@@ -478,8 +449,6 @@
                 class="map"
             ></div>
 
-
-            <!-- MAP CONTROLS -->
 
             <div class="map-floating-controls">
 
@@ -507,19 +476,15 @@
             </div>
 
 
-            <!-- MAP INFO -->
-
             <div class="map-info-card">
 
                 <div class="map-info-dot"></div>
-
 
                 <div>
 
                     <strong>
                         Live tracking
                     </strong>
-
 
                     <span>
                         Joylashuvlar real vaqtda yangilanadi
@@ -545,7 +510,6 @@
                 <h3>
                     Guruh a'zolari
                 </h3>
-
 
                 <span>
                     Hozirgi ishtirokchilar
@@ -588,7 +552,6 @@
                 Boshqa guruhga o‘tish
             </strong>
 
-
             <span>
                 Yangi guruh kodini kiriting
             </span>
@@ -622,7 +585,7 @@
     </div>
 
 
-    <!-- EXIT GROUP -->
+    <!-- LEAVE -->
 
     <div class="leave-group-panel">
 
@@ -650,7 +613,7 @@
     </div>
 
 
-    <!-- ROOM ERROR -->
+    <!-- ERROR -->
 
     <div
         id="roomError"
@@ -663,8 +626,6 @@
 
 </main>
 
-<!-- FOOTER -->
-
 <footer class="footer">
 
 <div>
@@ -672,7 +633,6 @@
     <strong>
         Live GPS
     </strong>
-
 
     <span>
         Real-time location sharing
@@ -686,8 +646,6 @@
 </span>
 
 </footer>
-
-<!-- APP SCRIPT -->
 
 <script src="script.js"></script>
 
