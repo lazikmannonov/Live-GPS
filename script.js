@@ -1,6 +1,64 @@
 "use strict";
 
 /* =========================================================
+   LIVE GPS — YANDEX MAPS 3.0
+   server.js ga tegilmaydi
+   ========================================================= */
+
+/*
+ * WebSocket server manzili.
+ *
+ * HTTPS sayt bo‘lsa:
+ *    wss://
+ *
+ * HTTP bo‘lsa:
+ *    ws://
+ */
+
+const WS_URL =
+    location.protocol === "https:"
+        ? `wss://${location.host}`
+        : `ws://${location.host}`;
+
+
+/* =========================================================
+   STATE
+   ========================================================= */
+
+const state = {
+    ws: null,
+
+    userId:
+        localStorage.getItem("livegps_user_id") ||
+        `user_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+
+    userName:
+        localStorage.getItem("livegps_user_name") || "",
+
+    roomCode:
+        localStorage.getItem("livegps_room_code") || "",
+
+    connected: false,
+    reconnectTimer: null,
+    reconnectAttempts: 0,
+
+    gpsWatchId: null,
+    currentPosition: null,
+
+    map: null,
+    yandexReady: false,
+    mapReady: false,
+
+    markers: new Map(),
+    users: new Map(),
+
+    firstGpsFix: false,
+
+    theme:
+        localStorage.getItem("livegps_theme") ||
+        "dark"
+};
+/* =========================================================
    YANDEX MAPS 3.0 LOADER
    ========================================================= */
 
@@ -65,45 +123,6 @@ async function loadYandexMaps() {
         throw error;
     }
 }
-
-/* =========================================================
-   STATE
-   ========================================================= */
-
-const state = {
-    ws: null,
-
-    userId:
-        localStorage.getItem("livegps_user_id") ||
-        `user_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-
-    userName:
-        localStorage.getItem("livegps_user_name") || "",
-
-    roomCode:
-        localStorage.getItem("livegps_room_code") || "",
-
-    connected: false,
-    reconnectTimer: null,
-    reconnectAttempts: 0,
-
-    gpsWatchId: null,
-    currentPosition: null,
-
-    map: null,
-    yandexReady: false,
-    mapReady: false,
-
-    markers: new Map(),
-    users: new Map(),
-
-    firstGpsFix: false,
-
-    theme:
-        localStorage.getItem("livegps_theme") ||
-        "dark"
-};
-
 
 /* =========================================================
    SAVE SESSION
