@@ -1223,39 +1223,53 @@ function handleServerMessage(event) {
        CONNECTED
        ===================================================== */
 
+  if (
+    data.type === "connected"
+) {
+
     if (
-        data.type === "connected"
+        !currentUserId &&
+        isValidUserId(data.userId)
     ) {
 
-        /*
-         * Eski saqlangan user ID bo‘lsa,
-         * uni serverning yangi vaqtinchalik ID'si
-         * bilan almashtirmaymiz.
-         */
-
-        if (
-            !currentUserId &&
-            isValidUserId(data.userId)
-        ) {
-
-            currentUserId =
-                String(
-                    data.userId
-                );
-
-
-            localStorage.setItem(
-                USER_ID_KEY,
-                currentUserId
+        currentUserId =
+            String(
+                data.userId
             );
-        }
 
-
-        sendPendingAction();
-
-        return;
+        localStorage.setItem(
+            USER_ID_KEY,
+            currentUserId
+        );
     }
 
+
+    if (
+        !pendingAction &&
+        currentRoomCode &&
+        currentUserName
+    ) {
+
+        pendingAction = {
+
+            type:
+                "join",
+
+            roomCode:
+                currentRoomCode,
+
+            name:
+                currentUserName
+        };
+
+        pendingActionSent = false;
+    }
+
+
+    sendPendingAction();
+
+    return;
+}
 
     /* =====================================================
        ROOM CREATED
