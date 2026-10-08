@@ -2934,30 +2934,25 @@ function updateMarkerElement(
         return;
     }
 
-
     const avatar =
         element.querySelector(
             ".gps-marker-avatar span"
         );
-
 
     const name =
         element.querySelector(
             ".gps-marker-name"
         );
 
-
     const status =
         element.querySelector(
             ".gps-marker-status"
         );
 
-
     const onlineDot =
         element.querySelector(
             ".gps-marker-online"
         );
-
 
     const initial =
         (
@@ -2971,18 +2966,15 @@ function updateMarkerElement(
             .charAt(0)
             .toUpperCase();
 
-
     const online =
         isMe ||
         user.online !== false;
-
 
     if (avatar) {
 
         avatar.textContent =
             initial;
     }
-
 
     if (name) {
 
@@ -2994,7 +2986,6 @@ function updateMarkerElement(
                     : "Noma'lum"
             );
     }
-
 
     if (status) {
 
@@ -3008,7 +2999,6 @@ function updateMarkerElement(
                 );
     }
 
-
     if (onlineDot) {
 
         onlineDot.classList.toggle(
@@ -3017,7 +3007,6 @@ function updateMarkerElement(
         );
     }
 }
-
 
 /* =========================================================
    MY MARKER
@@ -4408,6 +4397,50 @@ function injectPremiumMarkerStyle() {
             overflow: hidden;
         }
 
+.gps-marker-card {
+
+    opacity: 0;
+
+    visibility: hidden;
+
+    transform:
+        translateY(8px)
+        scale(.92);
+
+    pointer-events: none;
+
+    transition:
+        opacity .2s ease,
+        transform .2s ease,
+        visibility .2s ease;
+}
+
+
+.gps-premium-marker:hover
+.gps-marker-card {
+
+    opacity: 0;
+
+    visibility: hidden;
+}
+
+
+/*
+ * Faqat bosilganda ism chiqadi.
+ */
+.gps-premium-marker.gps-marker-selected
+.gps-marker-card {
+
+    opacity: 1;
+
+    visibility: visible;
+
+    transform:
+        translateY(0)
+        scale(1);
+
+    pointer-events: auto;
+}
 
         .gps-marker-avatar {
 
