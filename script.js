@@ -721,33 +721,63 @@ function getWebSocketUrl() {
     );
 }
 
-
 function connectWebSocket() {
 
     manuallyClosed = false;
 
+
+    /* =====================================================
+       AGAR WEBSOCKET ALLAQACHON OCHIQ BO'LSA
+       ===================================================== */
+
     if (
         ws &&
-        (
-            ws.readyState === WebSocket.OPEN ||
-            ws.readyState === WebSocket.CONNECTING
-        )
+        ws.readyState === WebSocket.OPEN
     ) {
+
+        /*
+         * Yangi create/join action bo'lsa,
+         * uni shu mavjud ulanish orqali yuboramiz.
+         *
+         * pendingActionSent false bo'lishi kerak.
+         */
+
+        pendingActionSent = false;
+
+        sendPendingAction();
+
         return;
     }
 
+
+    /* =====================================================
+       AGAR WEBSOCKET HOZIR ULANAYOTGAN BO'LSA
+       ===================================================== */
+
+    if (
+        ws &&
+        ws.readyState === WebSocket.CONNECTING
+    ) {
+
+        return;
+    }
+
+
     pendingActionSent = false;
+
 
     setConnectionStatus(
         "Ulanmoqda...",
         "connecting"
     );
 
+
     try {
 
-        ws = new WebSocket(
-            getWebSocketUrl()
-        );
+        ws =
+            new WebSocket(
+                getWebSocketUrl()
+            );
 
     } catch (error) {
 
@@ -761,33 +791,47 @@ function connectWebSocket() {
         return;
     }
 
+
+    /* =====================================================
+       OPEN
+       ===================================================== */
+
     ws.addEventListener(
         "open",
         () => {
 
             reconnectAttempts = 0;
 
+
             setConnectionStatus(
                 "Ulangan",
                 "online"
             );
 
+
             /*
-             * MUHIM:
-             * Bu yerda sendPendingAction() chaqirilmaydi.
+             * BU YERDA sendPendingAction() YO'Q.
              *
              * Server avval "connected" yuboradi.
-             * Shundan keyin action faqat bir marta yuboriladi.
+             * Shundan keyin action yuboriladi.
              */
         }
     );
 
+
+    /* =====================================================
+       MESSAGE
+       ===================================================== */
 
     ws.addEventListener(
         "message",
         handleServerMessage
     );
 
+
+    /* =====================================================
+       ERROR
+       ===================================================== */
 
     ws.addEventListener(
         "error",
@@ -798,6 +842,7 @@ function connectWebSocket() {
                 error
             );
 
+
             setConnectionStatus(
                 "Ulanish xatosi",
                 "error"
@@ -806,24 +851,33 @@ function connectWebSocket() {
     );
 
 
+    /* =====================================================
+       CLOSE
+       ===================================================== */
+
     ws.addEventListener(
         "close",
         () => {
 
             pendingActionSent = false;
 
+
             setConnectionStatus(
                 "Ulanish uzildi",
                 "offline"
             );
 
-            if (!manuallyClosed) {
+
+            if (
+                !manuallyClosed
+            ) {
 
                 scheduleReconnect();
             }
         }
     );
 }
+
 /* =========================================================
    RECONNECT
    ========================================================= */
@@ -889,18 +943,25 @@ function sendPendingAction() {
         return;
     }
 
+
     if (!pendingAction) {
         return;
     }
 
+
     /*
      * Bir WebSocket ulanishida
-     * action faqat bir marta yuboriladi.
+     * ayni action faqat bir marta yuboriladi.
      */
+
     if (pendingActionSent) {
         return;
     }
 
+
+    /* =====================================================
+       CREATE ROOM
+       ===================================================== */
 
     if (
         pendingAction.type === "create"
@@ -934,6 +995,10 @@ function sendPendingAction() {
         return;
     }
 
+
+    /* =====================================================
+       JOIN ROOM
+       ===================================================== */
 
     if (
         pendingAction.type === "join"
@@ -1013,19 +1078,9 @@ function handleServerMessage(
        CONNECTED
        ===================================================== */
 
-   if (
-    data.type ===
-    "connected"
+ if (
+    data.type === "connected"
 ) {
-
-    /*
-     * Agar localStorage'da userId allaqachon mavjud bo'lsa,
-     * server yuborgan yangi vaqtinchalik ID bilan
-     * uni almashtirmaymiz.
-     *
-     * Bu F5/reconnect paytida aynan o'sha userni
-     * davom ettirish uchun kerak.
-     */
 
     if (
         !currentUserId &&
@@ -1045,9 +1100,6 @@ function handleServerMessage(
     }
 
 
-    /*
-     * Endi pending action faqat bir marta yuboriladi.
-     */
     sendPendingAction();
 
     return;
