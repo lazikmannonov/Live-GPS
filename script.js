@@ -1,18 +1,70 @@
 "use strict";
 
 /* =========================================================
-   LIVE GPS — YANDEX MAPS 3.0
-   server.js ga tegilmaydi
+   YANDEX MAPS 3.0 LOADER
    ========================================================= */
 
-// Yangi Yandex API keyni shu yerga yozing
-const YANDEX_API_KEY = "fefa16f6-1dcb-4862-80eb-e59209bd56f5";
+async function loadYandexMaps() {
+    try {
+        /*
+         * Yandex API index.html ichida yuklanadi.
+         *
+         * Script async tarzda yuklanishi mumkin, shuning uchun
+         * ymaps3 darhol mavjud bo‘lmasligi mumkin.
+         *
+         * Shu yerda 15 soniyagacha kutamiz.
+         */
 
-const WS_URL =
-    location.protocol === "https:"
-        ? `wss://${location.host}`
-        : `ws://${location.host}`;
+        const maxWait = 15000;
+        const interval = 100;
+        const startTime = Date.now();
 
+        while (
+            typeof ymaps3 === "undefined" &&
+            Date.now() - startTime < maxWait
+        ) {
+            await new Promise(resolve => {
+                setTimeout(resolve, interval);
+            });
+        }
+
+        /*
+         * 15 soniyadan keyin ham ymaps3 bo‘lmasa,
+         * API yuklanmagan hisoblanadi.
+         */
+
+        if (typeof ymaps3 === "undefined") {
+            throw new Error(
+                "Yandex Maps API yuklanmadi. index.html dagi API key yoki HTTP Referer sozlamasini tekshiring."
+            );
+        }
+
+        /*
+         * Yandex Maps 3.0 to‘liq tayyor bo‘lishini kutamiz.
+         */
+
+        await ymaps3.ready;
+
+        state.yandexReady = true;
+
+        console.log(
+            "YANDEX MAPS: ready"
+        );
+
+        return true;
+
+    } catch (error) {
+
+        state.yandexReady = false;
+
+        console.error(
+            "YANDEX MAPS ERROR:",
+            error
+        );
+
+        throw error;
+    }
+}
 
 /* =========================================================
    STATE
