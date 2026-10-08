@@ -1,743 +1,660 @@
 <!DOCTYPE html>
+
 <html lang="uz">
 <head>
 
-    <meta charset="UTF-8">
+```
+<meta charset="UTF-8">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-    >
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+>
 
-    <title>Live GPS — Real-time Location</title>
+<title>Live GPS — Real-time Location</title>
 
+<!-- GOOGLE FONTS -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-    <!-- =====================================================
-         GOOGLE FONTS
-    ====================================================== -->
+<link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- YANDEX MAPS API 3.0 -->
+<script
+    src="https://api-maps.yandex.ru/v3/?apikey=fefa16f6-1dcb-4862-80eb-e59209bd56f5&lang=uz_UZ"
+></script>
 
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-        rel="stylesheet"
-    >
-
-
-    <!-- =====================================================
-         YANDEX MAPS API 3.0
-
-         MUHIM:
-         YANGI_YANDEX_API_KEY o'rniga Yandex Developer
-         kabinetidan olgan yangi API keyingizni yozing.
-
-         Masalan:
-         apikey=ABC123456&lang=uz_UZ
-
-         &lang=uz_UZ QOLADI.
-    ====================================================== -->
-
-    <script
-        src="https://api-maps.yandex.ru/v3/?apikey=fefa16f6-1dcb-4862-80eb-e59209bd56f5&lang=uz_UZ"
-    ></script>
-
-
-    <!-- =====================================================
-         APP CSS
-    ====================================================== -->
-
-    <link rel="stylesheet" href="style.css">
+<!-- APP CSS -->
+<link rel="stylesheet" href="style.css">
+```
 
 </head>
-
 
 <body>
 
 <div class="ambient ambient-1"></div>
 <div class="ambient ambient-2"></div>
 
-
-<!-- =====================================================
-     TOPBAR
-===================================================== -->
+<!-- TOPBAR -->
 
 <header class="topbar">
 
-    <div class="brand">
+```
+<div class="brand">
 
-        <div class="brand-icon">
-            <span></span>
+    <div class="brand-icon">
+        <span></span>
+    </div>
+
+    <div class="brand-text">
+
+        <strong>
+            Live GPS
+        </strong>
+
+        <small>
+            Real-time location
+        </small>
+
+    </div>
+
+</div>
+
+<div class="topbar-actions">
+
+    <div
+        id="connectionPill"
+        class="connection-pill offline"
+    >
+
+        <span class="connection-dot"></span>
+
+        <span id="connectionText">
+            Offline
+        </span>
+
+    </div>
+
+    <button
+        id="themeBtn"
+        class="icon-btn"
+        type="button"
+        title="Mavzuni almashtirish"
+        aria-label="Mavzuni almashtirish"
+    >
+
+        <span id="themeIcon">
+            ☾
+        </span>
+
+    </button>
+
+</div>
+```
+
+</header>
+
+<!-- MAIN -->
+
+<main class="page">
+
+```
+<!-- SETUP CARD -->
+
+<section
+    id="setupCard"
+    class="setup-card"
+>
+
+    <div class="hero-badge">
+
+        <span class="hero-badge-dot"></span>
+
+        LIVE LOCATION
+
+    </div>
+
+    <div class="hero-title">
+
+        <h1>
+            Joylashuvingizni
+            <br>
+            <span>
+                real vaqtda ulashing.
+            </span>
+        </h1>
+
+        <p>
+            Guruh yarating yoki mavjud guruhga qo‘shiling.
+            Guruhdagi foydalanuvchilar xaritada real vaqtda
+            ko‘rinadi.
+        </p>
+
+    </div>
+
+    <div class="setup-content">
+
+        <!-- ISM -->
+
+        <div class="field-group">
+
+            <label for="userName">
+                Ismingiz
+            </label>
+
+            <div class="input-wrap">
+
+                <span class="input-icon">
+                    ◉
+                </span>
+
+                <input
+                    id="userName"
+                    type="text"
+                    maxlength="30"
+                    autocomplete="name"
+                    placeholder="Masalan: Lazizbek"
+                >
+
+            </div>
+
         </div>
 
-        <div class="brand-text">
+        <!-- CREATE ROOM -->
 
-            <strong>
-                Live GPS
-            </strong>
+        <button
+            id="createRoomBtn"
+            class="primary-btn"
+            type="button"
+        >
 
-            <small>
-                Real-time location
-            </small>
+            <span class="btn-icon">
+                ＋
+            </span>
+
+            <span>
+                Yangi guruh yaratish
+            </span>
+
+            <span class="btn-arrow">
+                →
+            </span>
+
+        </button>
+
+        <!-- DIVIDER -->
+
+        <div class="or-divider">
+
+            <span></span>
+
+            yoki
+
+            <span></span>
+
+        </div>
+
+        <!-- ROOM CODE -->
+
+        <div class="field-group">
+
+            <label for="roomCode">
+                Guruh kodi
+            </label>
+
+            <div class="input-wrap room-code-wrap">
+
+                <span class="input-icon">
+                    #
+                </span>
+
+                <input
+                    id="roomCode"
+                    type="text"
+                    maxlength="6"
+                    autocomplete="off"
+                    autocapitalize="characters"
+                    spellcheck="false"
+                    placeholder="ABC123"
+                >
+
+            </div>
+
+        </div>
+
+        <!-- JOIN ROOM -->
+
+        <button
+            id="joinRoomBtn"
+            class="secondary-btn"
+            type="button"
+        >
+
+            <span>
+                Guruhga qo‘shilish
+            </span>
+
+            <span>
+                →
+            </span>
+
+        </button>
+
+        <!-- SETUP ERROR -->
+
+        <div
+            id="setupError"
+            class="error-box"
+            role="alert"
+            aria-live="polite"
+        ></div>
+
+    </div>
+
+    <!-- FEATURES -->
+
+    <div class="setup-features">
+
+        <div class="feature">
+
+            <div class="feature-icon green">
+                ⌖
+            </div>
+
+            <div>
+
+                <strong>
+                    Real vaqt
+                </strong>
+
+                <span>
+                    Joylashuvlar tez yangilanadi
+                </span>
+
+            </div>
+
+        </div>
+
+        <div class="feature">
+
+            <div class="feature-icon blue">
+                ♢
+            </div>
+
+            <div>
+
+                <strong>
+                    Guruhli
+                </strong>
+
+                <span>
+                    Bir nechta odam bilan ishlaydi
+                </span>
+
+            </div>
+
+        </div>
+
+        <div class="feature">
+
+            <div class="feature-icon purple">
+                ⌁
+            </div>
+
+            <div>
+
+                <strong>
+                    Oddiy
+                </strong>
+
+                <span>
+                    Kod orqali tez ulanish
+                </span>
+
+            </div>
 
         </div>
 
     </div>
 
+</section>
 
-    <div class="topbar-actions">
+<!-- ROOM CARD -->
 
-        <div
-            id="connectionPill"
-            class="connection-pill offline"
-        >
+<section
+    id="roomCard"
+    class="room-card hidden"
+>
 
-            <span class="connection-dot"></span>
+    <!-- ROOM HEADER -->
 
-            <span id="connectionText">
-                Offline
-            </span>
+    <div class="room-top">
+
+        <div>
+
+            <div class="room-label">
+
+                <span class="live-dot"></span>
+
+                FAOL GURUH
+
+            </div>
+
+            <h2 id="currentRoomCode">
+                ------
+            </h2>
+
+            <div class="room-code-sub">
+                Ushbu kodni guruh a'zolariga yuboring
+            </div>
 
         </div>
 
-
         <button
-            id="themeBtn"
-            class="icon-btn"
+            id="copyRoomBtn"
+            class="copy-btn"
             type="button"
-            title="Mavzuni almashtirish"
-            aria-label="Mavzuni almashtirish"
         >
 
-            <span id="themeIcon">
-                ☾
+            <span>
+                ⧉
+            </span>
+
+            <span id="copyRoomText">
+                Nusxalash
             </span>
 
         </button>
 
     </div>
 
-</header>
+    <!-- STATUS -->
 
+    <div class="status-grid">
 
-<!-- =====================================================
-     MAIN
-===================================================== -->
+        <div class="status-card">
 
-<main class="page">
-
-
-    <!-- =================================================
-         SETUP CARD
-    ================================================== -->
-
-    <section
-        id="setupCard"
-        class="setup-card"
-    >
-
-        <div class="hero-badge">
-
-            <span class="hero-badge-dot"></span>
-
-            LIVE LOCATION
-
-        </div>
-
-
-        <div class="hero-title">
-
-            <h1>
-                Joylashuvingizni
-                <br>
-                <span>
-                    real vaqtda ulashing.
-                </span>
-            </h1>
-
-
-            <p>
-                Guruh yarating yoki mavjud guruhga qo‘shiling.
-                Guruhdagi foydalanuvchilar xaritada real vaqtda
-                ko‘rinadi.
-            </p>
-
-        </div>
-
-
-        <div class="setup-content">
-
-
-            <!-- ISM -->
-
-            <div class="field-group">
-
-                <label for="userName">
-                    Ismingiz
-                </label>
-
-
-                <div class="input-wrap">
-
-                    <span class="input-icon">
-                        ◉
-                    </span>
-
-
-                    <input
-                        id="userName"
-                        type="text"
-                        maxlength="30"
-                        autocomplete="name"
-                        placeholder="Masalan: Lazizbek"
-                    >
-
-                </div>
-
+            <div class="status-card-icon green-icon">
+                ●
             </div>
-
-
-            <!-- CREATE ROOM -->
-
-            <button
-                id="createRoomBtn"
-                class="primary-btn"
-                type="button"
-            >
-
-                <span class="btn-icon">
-                    ＋
-                </span>
-
-
-                <span>
-                    Yangi guruh yaratish
-                </span>
-
-
-                <span class="btn-arrow">
-                    →
-                </span>
-
-            </button>
-
-
-            <!-- DIVIDER -->
-
-            <div class="or-divider">
-
-                <span></span>
-
-                yoki
-
-                <span></span>
-
-            </div>
-
-
-            <!-- ROOM CODE -->
-
-            <div class="field-group">
-
-                <label for="roomCode">
-                    Guruh kodi
-                </label>
-
-
-                <div class="input-wrap room-code-wrap">
-
-                    <span class="input-icon">
-                        #
-                    </span>
-
-
-                    <input
-                        id="roomCode"
-                        type="text"
-                        maxlength="6"
-                        autocomplete="off"
-                        autocapitalize="characters"
-                        spellcheck="false"
-                        placeholder="ABC123"
-                    >
-
-                </div>
-
-            </div>
-
-
-            <!-- JOIN ROOM -->
-
-            <button
-                id="joinRoomBtn"
-                class="secondary-btn"
-                type="button"
-            >
-
-                <span>
-                    Guruhga qo‘shilish
-                </span>
-
-
-                <span>
-                    →
-                </span>
-
-            </button>
-
-
-            <!-- SETUP ERROR -->
-
-            <div
-                id="setupError"
-                class="error-box"
-                role="alert"
-                aria-live="polite"
-            ></div>
-
-        </div>
-
-
-        <!-- FEATURES -->
-
-        <div class="setup-features">
-
-
-            <div class="feature">
-
-                <div class="feature-icon green">
-                    ⌖
-                </div>
-
-
-                <div>
-
-                    <strong>
-                        Real vaqt
-                    </strong>
-
-
-                    <span>
-                        Joylashuvlar tez yangilanadi
-                    </span>
-
-                </div>
-
-            </div>
-
-
-            <div class="feature">
-
-                <div class="feature-icon blue">
-                    ♢
-                </div>
-
-
-                <div>
-
-                    <strong>
-                        Guruhli
-                    </strong>
-
-
-                    <span>
-                        Bir nechta odam bilan ishlaydi
-                    </span>
-
-                </div>
-
-            </div>
-
-
-            <div class="feature">
-
-                <div class="feature-icon purple">
-                    ⌁
-                </div>
-
-
-                <div>
-
-                    <strong>
-                        Oddiy
-                    </strong>
-
-
-                    <span>
-                        Kod orqali tez ulanish
-                    </span>
-
-                </div>
-
-            </div>
-
-
-        </div>
-
-    </section>
-
-
-    <!-- =================================================
-         ROOM CARD
-    ================================================== -->
-
-    <section
-        id="roomCard"
-        class="room-card hidden"
-    >
-
-
-        <!-- ROOM HEADER -->
-
-        <div class="room-top">
 
             <div>
 
-                <div class="room-label">
+                <span>
+                    Aloqa
+                </span>
 
-                    <span class="live-dot"></span>
-
-                    FAOL GURUH
-
-                </div>
-
-
-                <h2 id="currentRoomCode">
-                    ------
-                </h2>
-
-
-                <div class="room-code-sub">
-                    Ushbu kodni guruh a'zolariga yuboring
-                </div>
+                <strong id="connectionStatus">
+                    Ulanmoqda...
+                </strong>
 
             </div>
-
-
-            <button
-                id="copyRoomBtn"
-                class="copy-btn"
-                type="button"
-            >
-
-                <span>
-                    ⧉
-                </span>
-
-
-                <span id="copyRoomText">
-                    Nusxalash
-                </span>
-
-            </button>
 
         </div>
 
+        <div class="status-card">
 
-        <!-- STATUS -->
+            <div class="status-card-icon blue-icon">
+                ⌖
+            </div>
 
-        <div class="status-grid">
+            <div>
 
+                <span>
+                    GPS
+                </span>
 
-            <div class="status-card">
-
-                <div class="status-card-icon green-icon">
-                    ●
-                </div>
-
-
-                <div>
-
-                    <span>
-                        Aloqa
-                    </span>
-
-
-                    <strong id="connectionStatus">
-                        Ulanmoqda...
-                    </strong>
-
-                </div>
+                <strong id="locationStatus">
+                    Kutilmoqda...
+                </strong>
 
             </div>
 
+        </div>
 
-            <div class="status-card">
+    </div>
 
-                <div class="status-card-icon blue-icon">
+    <!-- YANDEX MAP -->
+
+    <div class="map-wrapper">
+
+        <div class="map-header">
+
+            <div class="map-title">
+
+                <div class="map-title-icon">
                     ⌖
                 </div>
 
-
                 <div>
 
-                    <span>
-                        GPS
-                    </span>
-
-
-                    <strong id="locationStatus">
-                        Kutilmoqda...
+                    <strong>
+                        Live xarita
                     </strong>
 
-                </div>
-
-            </div>
-
-
-        </div>
-
-
-        <!-- =================================================
-             YANDEX MAP
-        ================================================== -->
-
-        <div class="map-wrapper">
-
-            <div class="map-header">
-
-                <div class="map-title">
-
-                    <div class="map-title-icon">
-                        ⌖
-                    </div>
-
-
-                    <div>
-
-                        <strong>
-                            Live xarita
-                        </strong>
-
-
-                        <span>
-                            Real-time locations
-                        </span>
-
-                    </div>
-
-                </div>
-
-
-                <div class="map-live">
-
-                    <span></span>
-
-                    LIVE
-
-                </div>
-
-            </div>
-
-
-            <div class="map-container">
-
-                <!-- YANDEX MAP CONTAINER -->
-
-                <div
-                    id="map"
-                    class="map"
-                ></div>
-
-
-                <!-- MAP CONTROLS -->
-
-                <div class="map-floating-controls">
-
-                    <button
-                        id="myLocationBtn"
-                        class="map-control"
-                        type="button"
-                        title="Mening joylashuvim"
-                        aria-label="Mening joylashuvim"
-                    >
-                        ◎
-                    </button>
-
-
-                    <button
-                        id="centerMapBtn"
-                        class="map-control"
-                        type="button"
-                        title="Guruhni ko‘rsatish"
-                        aria-label="Guruhni ko‘rsatish"
-                    >
-                        ⛶
-                    </button>
-
-                </div>
-
-
-                <!-- MAP INFO -->
-
-                <div class="map-info-card">
-
-                    <div class="map-info-dot"></div>
-
-
-                    <div>
-
-                        <strong>
-                            Live tracking
-                        </strong>
-
-
-                        <span>
-                            Joylashuvlar real vaqtda yangilanadi
-                        </span>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-        </div>
-
-
-        <!-- =================================================
-             MEMBERS
-        ================================================== -->
-
-        <div class="members-section">
-
-            <div class="section-heading">
-
-                <div>
-
-                    <h3>
-                        Guruh a'zolari
-                    </h3>
-
-
                     <span>
-                        Hozirgi ishtirokchilar
+                        Real-time locations
                     </span>
 
                 </div>
 
-
-                <div
-                    id="membersCount"
-                    class="member-count"
-                >
-                    0
-                </div>
-
             </div>
 
+            <div class="map-live">
 
-            <div
-                id="membersList"
-                class="members-list"
-            >
+                <span></span>
 
-                <div class="empty-members">
-                    A'zolar kutilmoqda...
-                </div>
+                LIVE
 
             </div>
 
         </div>
 
+        <div class="map-container">
 
-        <!-- =================================================
-             SWITCH ROOM
-        ================================================== -->
+            <div
+                id="map"
+                class="map"
+            ></div>
 
-        <div class="switch-panel">
+            <!-- MAP CONTROLS -->
 
-            <div class="switch-title">
-
-                <strong>
-                    Boshqa guruhga o‘tish
-                </strong>
-
-
-                <span>
-                    Yangi guruh kodini kiriting
-                </span>
-
-            </div>
-
-
-            <div class="switch-form">
-
-                <input
-                    id="switchRoomInput"
-                    type="text"
-                    maxlength="6"
-                    placeholder="ABC123"
-                    autocomplete="off"
-                    autocapitalize="characters"
-                    spellcheck="false"
-                >
-
+            <div class="map-floating-controls">
 
                 <button
-                    id="switchRoomBtn"
-                    class="secondary-btn small"
+                    id="myLocationBtn"
+                    class="map-control"
                     type="button"
+                    title="Mening joylashuvim"
+                    aria-label="Mening joylashuvim"
                 >
-                    O‘tish →
+                    ◎
+                </button>
+
+                <button
+                    id="centerMapBtn"
+                    class="map-control"
+                    type="button"
+                    title="Guruhni ko‘rsatish"
+                    aria-label="Guruhni ko‘rsatish"
+                >
+                    ⛶
                 </button>
 
             </div>
 
+            <!-- MAP INFO -->
+
+            <div class="map-info-card">
+
+                <div class="map-info-dot"></div>
+
+                <div>
+
+                    <strong>
+                        Live tracking
+                    </strong>
+
+                    <span>
+                        Joylashuvlar real vaqtda yangilanadi
+                    </span>
+
+                </div>
+
+            </div>
+
         </div>
-
-
-        <!-- ROOM ERROR -->
-
-        <div
-            id="roomError"
-            class="error-box"
-            role="alert"
-            aria-live="polite"
-        ></div>
-
-
-    </section>
-
-</main>
-
-
-<!-- =====================================================
-     FOOTER
-===================================================== -->
-
-<footer class="footer">
-
-    <div>
-
-        <strong>
-            Live GPS
-        </strong>
-
-
-        <span>
-            Real-time location sharing
-        </span>
 
     </div>
 
+    <!-- MEMBERS -->
 
-    <span class="footer-status">
-        ● Tizim faol
+    <div class="members-section">
+
+        <div class="section-heading">
+
+            <div>
+
+                <h3>
+                    Guruh a'zolari
+                </h3>
+
+                <span>
+                    Hozirgi ishtirokchilar
+                </span>
+
+            </div>
+
+            <div
+                id="membersCount"
+                class="member-count"
+            >
+                0
+            </div>
+
+        </div>
+
+        <div
+            id="membersList"
+            class="members-list"
+        >
+
+            <div class="empty-members">
+                A'zolar kutilmoqda...
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- SWITCH ROOM -->
+
+    <div class="switch-panel">
+
+        <div class="switch-title">
+
+            <strong>
+                Boshqa guruhga o‘tish
+            </strong>
+
+            <span>
+                Yangi guruh kodini kiriting
+            </span>
+
+        </div>
+
+        <div class="switch-form">
+
+            <input
+                id="switchRoomInput"
+                type="text"
+                maxlength="6"
+                placeholder="ABC123"
+                autocomplete="off"
+                autocapitalize="characters"
+                spellcheck="false"
+            >
+
+            <button
+                id="switchRoomBtn"
+                class="secondary-btn small"
+                type="button"
+            >
+                O‘tish →
+            </button>
+
+        </div>
+
+    </div>
+
+    <!-- EXIT GROUP -->
+
+    <div class="leave-group-panel">
+
+        <button
+            id="leaveGroupBtn"
+            class="leave-group-btn"
+            type="button"
+        >
+
+            <span class="leave-group-icon">
+                ↪
+            </span>
+
+            <span>
+                Guruhdan chiqish
+            </span>
+
+        </button>
+
+        <p class="leave-group-hint">
+            Guruhdan chiqib, boshlang‘ich sahifaga qaytasiz.
+        </p>
+
+    </div>
+
+    <!-- ROOM ERROR -->
+
+    <div
+        id="roomError"
+        class="error-box"
+        role="alert"
+        aria-live="polite"
+    ></div>
+
+</section>
+```
+
+</main>
+
+<!-- FOOTER -->
+
+<footer class="footer">
+
+```
+<div>
+
+    <strong>
+        Live GPS
+    </strong>
+
+    <span>
+        Real-time location sharing
     </span>
+
+</div>
+
+<span class="footer-status">
+    ● Tizim faol
+</span>
+```
 
 </footer>
 
-
-<!-- =====================================================
-     APP SCRIPT
-
-     Leaflet ishlatilmaydi.
-     Yandex Maps 3.0 ishlatiladi.
-
-     Yandex API yuqorida yuklanadi,
-     shundan keyin script.js ishlaydi.
-===================================================== -->
+<!-- APP SCRIPT -->
 
 <script src="script.js"></script>
 
