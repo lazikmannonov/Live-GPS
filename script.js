@@ -16,7 +16,7 @@
 // DIQQAT:
 // API keyni GitHub'ga ochiq joylashdan oldin HTTP Referer restriction
 // qo'yish tavsiya qilinadi.
-const YANDEX_API_KEY = "YOUR_YANDEX_API_KEY";
+const YANDEX_API_KEY = "e730a056-07bb-4746-b169-6cb3a82846f2";
 
 
 // ============================================================
