@@ -1528,68 +1528,37 @@ function handleServerMessage(event) {
          * join bo‘lishining oldini olamiz.
          */
 
-        if (
-            message.includes(
-                "Bunday guruh topilmadi"
-            )
-        ) {
+       if (
+    message.includes(
+        "Bunday guruh topilmadi"
+    )
+) {
 
-            removeSavedGroup(
-                currentRoomCode
-            );
+    /*
+     * MUHIM:
+     *
+     * Saqlangan guruhni o‘CHIRMAYMIZ.
+     *
+     * Render uxlab qolishi yoki server qayta
+     * ishga tushishi sababli vaqtinchalik xato
+     * chiqsa ham localStorage'dagi guruh saqlanadi.
+     */
 
+    pendingAction = null;
+    pendingActionSent = false;
 
-            currentRoomCode = "";
+    showSetup();
 
+    showSetupError(
+        "Guruhga hozircha ulanib bo‘lmadi. Saqlangan guruh o‘chirilmagan. Keyinroq qayta urinib ko‘ring."
+    );
 
-            localStorage.removeItem(
-                ROOM_CODE_KEY
-            );
+    /*
+     * ROOM_CODE va LAST_ROOM_KEY ham saqlanib qoladi.
+     */
 
-            localStorage.removeItem(
-                LAST_ROOM_KEY
-            );
-
-
-            showSetup();
-
-            showSetupError(
-                "Bu guruh topilmadi. Yangi guruh yarating yoki boshqa guruh kodini kiriting."
-            );
-
-
-            return;
-        }
-
-
-        const room =
-            $("roomCard");
-
-
-        const roomVisible =
-            room &&
-            !room.classList.contains(
-                "hidden"
-            );
-
-
-        if (roomVisible) {
-
-            showRoomError(
-                message
-            );
-
-        } else {
-
-            showSetupError(
-                message
-            );
-        }
-
-
-        return;
-    }
-
+    return;
+}
 
     /* =====================================================
        LEFT ROOM
@@ -2407,17 +2376,18 @@ function renderUsers() {
             }
         );
 
+      /* =========================================================
+   CENTER MAP ON USER
+   ========================================================= */
+
 function centerMapOnUser(user) {
 
     if (!user) {
         return;
     }
 
-    const lat =
-        Number(user.lat);
-
-    const lng =
-        Number(user.lng);
+    const lat = Number(user.lat);
+    const lng = Number(user.lng);
 
     if (
         !Number.isFinite(lat) ||
@@ -2437,17 +2407,16 @@ function centerMapOnUser(user) {
 
     /*
      * Xarita hali tayyor bo‘lmasa,
-     * avval ishga tushiramiz.
+     * uni ishga tushiramiz.
      */
+
     if (!map) {
 
         initMap();
 
         setTimeout(() => {
-
             centerMapOnUser(user);
-
-        }, 400);
+        }, 500);
 
         return;
     }
@@ -2460,16 +2429,9 @@ function centerMapOnUser(user) {
     try {
 
         map.setLocation({
-
-            center:
-                position,
-
-            zoom:
-                16,
-
-            duration:
-                650
-
+            center: position,
+            zoom: 16,
+            duration: 650
         });
 
     } catch (error) {
@@ -2481,10 +2443,20 @@ function centerMapOnUser(user) {
     }
 
     /*
-     * Shu odamning markerida ismni ochamiz.
+     * Tanlangan marker nomini ochamiz.
      */
+
     const id =
         String(user.id);
+
+    userMarkers.forEach(
+        (data) => {
+
+            data.element.classList.remove(
+                "gps-marker-selected"
+            );
+        }
+    );
 
     const markerData =
         userMarkers.get(id);
@@ -2494,42 +2466,25 @@ function centerMapOnUser(user) {
         markerData.element.classList.add(
             "gps-marker-selected"
         );
+    }
 
-        /*
-         * Boshqa markerlarning ochilgan
-         * ismini yopamiz.
-         */
-        userMarkers.forEach(
-            (data, markerId) => {
+    /*
+     * O‘zimizni tanlagan bo‘lsak,
+     * o‘z markerimiz nomini ochamiz.
+     */
 
-                if (
-                    markerId !== id
-                ) {
+    if (
+        id === String(currentUserId) &&
+        myMarker &&
+        myMarker.__element
+    ) {
 
-                    data.element.classList.remove(
-                        "gps-marker-selected"
-                    );
-                }
-            }
+        myMarker.__element.classList.add(
+            "gps-marker-selected"
         );
     }
-}
-       
-        /*
-         * Joylashuvi yo‘q odam uchun
-         * bosilganda hech narsa qilmaymiz.
-         */
-        if (!hasLocation) {
-
-            item.classList.add(
-                "member-no-location"
-            );
-        }
-
-        list.appendChild(item);
-    });
-}
-
+} 
+ 
 /* =========================================================
    DISTANCE
    ========================================================= */
