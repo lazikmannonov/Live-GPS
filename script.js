@@ -4,6 +4,7 @@
 /* =========================================================
    LIVE GPS — YANDEX MAPS 3.0
    server.js ga tegilmaydi
+   Telefon GPS uchun optimallashtirilgan
    ========================================================= */
 
 
@@ -48,7 +49,7 @@ const state = {
 
     currentPosition: null,
 
-    /* Eng so‘nggi yaxshi GPS nuqta */
+    /* Oxirgi qabul qilingan yaxshi GPS */
     lastGoodPosition: null,
 
     map: null,
@@ -519,7 +520,9 @@ function centerMap(
 
     if (
         !Number.isFinite(safeLng) ||
-        !Number.isFinite(safeLat)
+        !Number.isFinite(safeLat) ||
+        Math.abs(safeLng) > 180 ||
+        Math.abs(safeLat) > 90
     ) {
         return;
     }
@@ -553,9 +556,9 @@ function createMarkerElement(user) {
     const wrapper =
         document.createElement("div");
 
-    wrapper.className = "gps-marker";
+    wrapper.className =
+        "gps-marker";
 
-    /* Foydalanuvchi ID sini markerning o‘zida saqlaymiz */
     const userId =
         String(
             user.id ||
@@ -563,52 +566,84 @@ function createMarkerElement(user) {
             ""
         );
 
-    wrapper.dataset.userId = userId;
+    wrapper.dataset.userId =
+        userId;
 
-    wrapper.style.pointerEvents = "auto";
-    wrapper.style.cursor = "pointer";
+    wrapper.style.pointerEvents =
+        "auto";
+
+    wrapper.style.cursor =
+        "pointer";
 
 
-    /*
-     * Marker bosilganda aynan shu
-     * foydalanuvchining koordinatasiga boramiz.
-     */
-    wrapper.addEventListener(
-        "click",
-        function(event) {
+    /* =====================================================
+       MARKER CLICK
+    ===================================================== */
+
+    function markerClick(event) {
+
+        if (event) {
 
             event.preventDefault();
+
             event.stopPropagation();
+        }
 
-            console.log(
-                "MARKER CLICK:",
-                userId,
-                user.name || user.userName,
-                user.lat,
-                user.lng
-            );
+        console.log(
+            "MARKER CLICK:",
+            userId,
+            user.name ||
+            user.userName,
+            user.lat,
+            user.lng
+        );
 
-            centerSelectedUser(userId);
-        },
+        centerSelectedUser(
+            userId
+        );
+    }
+
+
+    wrapper.addEventListener(
+        "click",
+        markerClick,
         true
     );
 
 
-    /*
-     * O‘zimiz yashil,
-     * boshqa guruh a'zolari ko‘k.
-     */
+    wrapper.addEventListener(
+        "pointerup",
+        markerClick,
+        true
+    );
+
+
+    wrapper.addEventListener(
+        "touchend",
+        markerClick,
+        {
+            capture: true,
+            passive: false
+        }
+    );
+
+
     const isMe =
         userId ===
         String(state.userId);
 
 
     wrapper.classList.add(
-        isMe ? "me" : "other"
+        isMe
+            ? "me"
+            : "other"
     );
 
 
-    /* Pin */
+    /* =====================================================
+       PIN
+    ===================================================== */
+
     const pin =
         document.createElement("div");
 
@@ -616,7 +651,10 @@ function createMarkerElement(user) {
         "gps-marker-pin";
 
 
-    /* Ichki nuqta */
+    /* =====================================================
+       DOT
+    ===================================================== */
+
     const dot =
         document.createElement("div");
 
@@ -624,10 +662,15 @@ function createMarkerElement(user) {
         "gps-marker-dot";
 
 
-    pin.appendChild(dot);
+    pin.appendChild(
+        dot
+    );
 
 
-    /* Ism */
+    /* =====================================================
+       NAME
+    ===================================================== */
+
     const label =
         document.createElement("div");
 
@@ -640,12 +683,18 @@ function createMarkerElement(user) {
         "Foydalanuvchi";
 
 
-    wrapper.appendChild(pin);
-    wrapper.appendChild(label);
+    wrapper.appendChild(
+        pin
+    );
+
+    wrapper.appendChild(
+        label
+    );
 
 
     return wrapper;
 }
+
 
 /* =========================================================
    REMOVE MARKER
@@ -653,10 +702,13 @@ function createMarkerElement(user) {
 
 function removeMarker(userId) {
 
+    const id =
+        String(userId);
+
+
     const marker =
-        state.markers.get(
-            String(userId)
-        );
+        state.markers.get(id);
+
 
     if (
         !marker ||
@@ -664,6 +716,7 @@ function removeMarker(userId) {
     ) {
         return;
     }
+
 
     try {
 
@@ -679,8 +732,9 @@ function removeMarker(userId) {
         );
     }
 
+
     state.markers.delete(
-        String(userId)
+        id
     );
 }
 
@@ -699,6 +753,7 @@ function renderMarkers() {
         return;
     }
 
+
     const {
         YMapMarker
     } = ymaps3;
@@ -711,16 +766,6 @@ function renderMarkers() {
     state.users.forEach(
         (user, userId) => {
 
-            if (
-                user.lat === undefined ||
-                user.lng === undefined ||
-                user.lat === null ||
-                user.lng === null
-            ) {
-                return;
-            }
-
-
             const lat =
                 Number(user.lat);
 
@@ -730,30 +775,29 @@ function renderMarkers() {
 
             if (
                 !Number.isFinite(lat) ||
-                !Number.isFinite(lng)
-            ) {
-                return;
-            }
-
-
-            /*
-             * Noto‘g‘ri geografik qiymatni
-             * umuman markerga aylantirmaymiz.
-             */
-
-            if (
+                !Number.isFinite(lng) ||
                 Math.abs(lat) > 90 ||
                 Math.abs(lng) > 180
             ) {
+
                 return;
             }
 
 
             const id =
-                String(userId);
+                String(
+                    userId
+                );
+
 
             activeIds.add(id);
 
+
+            /*
+             * Eski markerga eski koordinata
+             * yopishib qolmasligi uchun
+             * qayta yaratamiz.
+             */
 
             if (
                 state.markers.has(id)
@@ -818,7 +862,9 @@ function renderMarkers() {
 
 function centerMyLocation() {
 
-    if (!state.currentPosition) {
+    if (
+        !state.currentPosition
+    ) {
 
         updateLocationStatus(
             "waiting",
@@ -841,10 +887,15 @@ function centerMyLocation() {
    CENTER SELECTED USER
 ========================================================= */
 
-function centerSelectedUser(userId) {
+function centerSelectedUser(
+    userId
+) {
 
     const id =
-        String(userId || "");
+        String(
+            userId || ""
+        );
+
 
     console.log(
         "CENTER USER:",
@@ -861,7 +912,9 @@ function centerSelectedUser(userId) {
         console.warn(
             "Foydalanuvchi topilmadi:",
             id,
-            Array.from(state.users.keys())
+            Array.from(
+                state.users.keys()
+            )
         );
 
         return;
@@ -879,7 +932,9 @@ function centerSelectedUser(userId) {
         "USER COORDINATES:",
         {
             id,
-            name: user.name || user.userName,
+            name:
+                user.name ||
+                user.userName,
             lat,
             lng
         }
@@ -895,7 +950,7 @@ function centerSelectedUser(userId) {
 
         updateLocationStatus(
             "error",
-            "Bu a'zoning joylashuvi noto‘g‘ri"
+            "Bu a'zoning joylashuvi mavjud emas"
         );
 
         return;
@@ -903,10 +958,11 @@ function centerSelectedUser(userId) {
 
 
     /*
-     * Aynan shu a'zoning koordinatasi.
-     * Boshqa foydalanuvchining koordinatasi
-     * ishlatilmaydi.
+     * MUHIM:
+     * Faqat tanlangan foydalanuvchining
+     * koordinatasi ishlatiladi.
      */
+
     centerMap(
         lng,
         lat,
@@ -915,8 +971,9 @@ function centerSelectedUser(userId) {
 
 
     /*
-     * Tanlangan markerga vizual urg‘u.
+     * Markerga selected holat.
      */
+
     const marker =
         state.markers.get(id);
 
@@ -954,6 +1011,7 @@ function centerSelectedUser(userId) {
         lng
     );
 }
+
 
 /* =========================================================
    CENTER ALL USERS
@@ -998,7 +1056,9 @@ function centerAllUsers() {
     }
 
 
-    if (positions.length === 1) {
+    if (
+        positions.length === 1
+    ) {
 
         centerMap(
             positions[0][0],
@@ -1051,19 +1111,27 @@ function centerAllUsers() {
         );
 
 
-    if (spread < 0.001) {
+    if (
+        spread < 0.001
+    ) {
 
         zoom = 17;
 
-    } else if (spread < 0.005) {
+    } else if (
+        spread < 0.005
+    ) {
 
         zoom = 15;
 
-    } else if (spread < 0.02) {
+    } else if (
+        spread < 0.02
+    ) {
 
         zoom = 13;
 
-    } else if (spread < 0.1) {
+    } else if (
+        spread < 0.1
+    ) {
 
         zoom = 11;
 
@@ -1134,13 +1202,16 @@ function updateMembersUI() {
                 const id =
                     String(
                         user.id ||
-                        user.userId
+                        user.userId ||
+                        ""
                     );
 
 
                 const isMe =
                     id ===
-                    String(state.userId);
+                    String(
+                        state.userId
+                    );
 
 
                 const lat =
@@ -1219,12 +1290,17 @@ function updateMembersUI() {
         .forEach(item => {
 
             const userId =
-                item.dataset.userId;
+                String(
+                    item.dataset.userId ||
+                    ""
+                );
 
 
             item.addEventListener(
                 "click",
-                () => {
+                event => {
+
+                    event.preventDefault();
 
                     centerSelectedUser(
                         userId
@@ -1256,7 +1332,7 @@ function updateMembersUI() {
 
 /* =========================================================
    GPS DISTANCE
-   ========================================================= */
+========================================================= */
 
 function getDistanceMeters(
     lat1,
@@ -1267,23 +1343,41 @@ function getDistanceMeters(
 
     const R = 6371000;
 
+
     const toRad =
         value =>
-            value * Math.PI / 180;
+            value *
+            Math.PI /
+            180;
 
 
     const dLat =
-        toRad(lat2 - lat1);
+        toRad(
+            lat2 - lat1
+        );
 
     const dLng =
-        toRad(lng2 - lng1);
+        toRad(
+            lng2 - lng1
+        );
 
 
     const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(toRad(lat1)) *
-        Math.cos(toRad(lat2)) *
-        Math.sin(dLng / 2) ** 2;
+        Math.sin(
+            dLat / 2
+        ) ** 2 +
+
+        Math.cos(
+            toRad(lat1)
+        ) *
+
+        Math.cos(
+            toRad(lat2)
+        ) *
+
+        Math.sin(
+            dLng / 2
+        ) ** 2;
 
 
     const c =
@@ -1300,6 +1394,7 @@ function getDistanceMeters(
 
 /* =========================================================
    GPS POSITION QUALITY
+   TELEFON UCHUN YUMSHATILGAN
 ========================================================= */
 
 function isGoodGPSPosition(
@@ -1312,6 +1407,7 @@ function isGoodGPSPosition(
         !Number.isFinite(lat) ||
         !Number.isFinite(lng)
     ) {
+
         return false;
     }
 
@@ -1320,18 +1416,22 @@ function isGoodGPSPosition(
         Math.abs(lat) > 90 ||
         Math.abs(lng) > 180
     ) {
+
         return false;
     }
 
 
     /*
-     * Juda yomon aniqlik.
-     * Bunday nuqtani xaritaga qo‘ymaymiz.
+     * TELEFONDA:
+     *
+     * 500m limit juda qattiq edi.
+     * Endi 1500m gacha bo'lgan
+     * birinchi GPS nuqtani ham qabul qilamiz.
      */
 
     if (
         Number.isFinite(accuracy) &&
-        accuracy > 500
+        accuracy > 1500
     ) {
 
         console.warn(
@@ -1340,16 +1440,25 @@ function isGoodGPSPosition(
             "m"
         );
 
+        updateLocationStatus(
+            "waiting",
+            `GPS aniqlanmoqda... ±${Math.round(
+                accuracy
+            )} m`
+        );
+
         return false;
     }
 
 
     /*
-     * Oldingi yaxshi nuqtadan birdaniga
-     * juda uzoqqa sakrashni tekshiramiz.
+     * Oldingi yaxshi nuqta mavjud bo'lsa,
+     * noto'g'ri sakrashni tekshiramiz.
      */
 
-    if (state.lastGoodPosition) {
+    if (
+        state.lastGoodPosition
+    ) {
 
         const previous =
             state.lastGoodPosition;
@@ -1364,16 +1473,40 @@ function isGoodGPSPosition(
             );
 
 
+        const previousAccuracy =
+            Number(
+                previous.accuracy
+            );
+
+
+        const currentAccuracy =
+            Number(
+                accuracy
+            );
+
+
         /*
-         * Telefon GPS aniqligi yomon bo‘lsa,
-         * kichik sakrashlarni ham qabul qilmaymiz.
+         * Telefon GPSda katta aniqlik xatosi
+         * bo'lishi mumkin.
+         *
+         * Shuning uchun ruxsat etilgan masofa
+         * oldingi va yangi accuracy asosida
+         * hisoblanadi.
          */
 
         const allowedJump =
             Math.max(
-                1000,
-                (Number(previous.accuracy) || 50) * 4,
-                (Number(accuracy) || 50) * 4
+                3000,
+                Number.isFinite(
+                    previousAccuracy
+                )
+                    ? previousAccuracy * 8
+                    : 0,
+                Number.isFinite(
+                    currentAccuracy
+                )
+                    ? currentAccuracy * 8
+                    : 0
             );
 
 
@@ -1382,17 +1515,19 @@ function isGoodGPSPosition(
         ) {
 
             console.warn(
-                "GPS: noto‘g‘ri sakrash filtrlandi:",
+                "GPS: katta sakrash filtrlandi:",
                 Math.round(distance),
+                "m | ruxsat:",
+                Math.round(allowedJump),
                 "m"
             );
 
+
             updateLocationStatus(
                 "waiting",
-                `GPS aniqlashtirilmoqda... ±${Math.round(
-                    accuracy
-                )} m`
+                "GPS aniqlashtirilmoqda..."
             );
+
 
             return false;
         }
@@ -1409,7 +1544,9 @@ function isGoodGPSPosition(
 
 function startLocationTracking() {
 
-    if (!navigator.geolocation) {
+    if (
+        !navigator.geolocation
+    ) {
 
         updateLocationStatus(
             "error",
@@ -1423,16 +1560,32 @@ function startLocationTracking() {
     if (
         state.gpsWatchId !== null
     ) {
+
         return;
     }
 
 
-    state.firstGpsFix = false;
+    state.firstGpsFix =
+        false;
+
+
+    /*
+     * Eski GPS nuqtani tozalaymiz.
+     * Telefon yangi joylashuvni qaytadan oladi.
+     */
+
+    state.lastGoodPosition =
+        null;
 
 
     updateLocationStatus(
         "waiting",
-        "GPS aniqlanmoqda..."
+        "Telefon GPS aniqlanmoqda..."
+    );
+
+
+    console.log(
+        "GPS: tracking started"
     );
 
 
@@ -1441,24 +1594,32 @@ function startLocationTracking() {
             handlePosition,
             handleLocationError,
             {
-                /*
-                 * Telefonning haqiqiy GPS chipidan
-                 * foydalanishga ustuvorlik beramiz.
-                 */
-
-                enableHighAccuracy: true,
 
                 /*
-                 * Eski cache koordinatani ishlatmaymiz.
+                 * Telefonning aniq GPS
+                 * manbasidan foydalanishga
+                 * ustuvorlik beramiz.
                  */
 
-                maximumAge: 0,
+                enableHighAccuracy:
+                    true,
+
 
                 /*
-                 * GPSga ko‘proq vaqt beramiz.
+                 * Cache'dagi eski joylashuvni
+                 * ishlatmaymiz.
                  */
 
-                timeout: 30000
+                maximumAge:
+                    0,
+
+
+                /*
+                 * Telefon GPSga vaqt beramiz.
+                 */
+
+                timeout:
+                    60000
             }
         );
 }
@@ -1479,7 +1640,8 @@ function stopLocationTracking() {
             state.gpsWatchId
         );
 
-        state.gpsWatchId = null;
+        state.gpsWatchId =
+            null;
     }
 }
 
@@ -1488,7 +1650,9 @@ function stopLocationTracking() {
    GPS POSITION
 ========================================================= */
 
-function handlePosition(position) {
+function handlePosition(
+    position
+) {
 
     const lat =
         Number(
@@ -1508,8 +1672,18 @@ function handlePosition(position) {
         );
 
 
+    console.log(
+        "GPS POSITION:",
+        {
+            lat,
+            lng,
+            accuracy
+        }
+    );
+
+
     /*
-     * Birinchi navbatda koordinatani tekshiramiz.
+     * GPS nuqtani tekshiramiz.
      */
 
     if (
@@ -1525,29 +1699,37 @@ function handlePosition(position) {
 
 
     /*
-     * Yaxshi GPS nuqta saqlanadi.
+     * Yaxshi GPS nuqta.
      */
 
     state.lastGoodPosition = {
+
         lat,
+
         lng,
+
         accuracy
     };
 
 
     state.currentPosition = {
+
         lat,
+
         lng,
+
         accuracy
     };
 
 
     let accuracyText =
-        "Aniqlandi";
+        "aniqligi noma'lum";
 
 
     if (
-        Number.isFinite(accuracy)
+        Number.isFinite(
+            accuracy
+        )
     ) {
 
         accuracyText =
@@ -1564,8 +1746,13 @@ function handlePosition(position) {
 
 
     /*
-     * Faqat yaxshi aniqlikdagi
-     * birinchi nuqtada xaritani markazlaymiz.
+     * Birinchi haqiqiy GPS nuqtada
+     * xaritani shu joyga o'tkazamiz.
+     *
+     * Telefonning dastlabki nuqtasi
+     * 200m dan yomon bo'lsa ham,
+     * xaritani 1500m gacha aniqlikda
+     * markazlashimiz mumkin.
      */
 
     if (
@@ -1573,35 +1760,28 @@ function handlePosition(position) {
         !state.firstGpsFix
     ) {
 
-        /*
-         * 200 metrdan yomon bo‘lsa,
-         * xaritani hali sakratmaymiz.
-         */
+        centerMap(
+            lng,
+            lat,
+            17
+        );
 
-        if (
-            !Number.isFinite(accuracy) ||
-            accuracy <= 200
-        ) {
-
-            centerMap(
-                lng,
-                lat,
-                18
-            );
-
-            state.firstGpsFix = true;
-        }
+        state.firstGpsFix =
+            true;
     }
 
 
     /*
-     * O‘z foydalanuvchimizni yangilaymiz.
+     * O'z foydalanuvchimiz.
      */
 
     const currentUser =
         state.users.get(
-            String(state.userId)
-        ) || {
+            String(
+                state.userId
+            )
+        ) ||
+        {
 
             id:
                 state.userId,
@@ -1615,13 +1795,17 @@ function handlePosition(position) {
 
 
     currentUser.id =
-        currentUser.id ||
-        state.userId;
+        String(
+            currentUser.id ||
+            state.userId
+        );
 
 
     currentUser.userId =
-        currentUser.userId ||
-        state.userId;
+        String(
+            currentUser.userId ||
+            state.userId
+        );
 
 
     currentUser.name =
@@ -1632,20 +1816,25 @@ function handlePosition(position) {
     currentUser.lat =
         lat;
 
+
     currentUser.lng =
         lng;
+
 
     currentUser.accuracy =
         accuracy;
 
 
     state.users.set(
-        String(state.userId),
+        String(
+            state.userId
+        ),
         currentUser
     );
 
 
     updateMembersUI();
+
 
     renderMarkers();
 
@@ -1662,7 +1851,9 @@ function handlePosition(position) {
    GPS ERROR
 ========================================================= */
 
-function handleLocationError(error) {
+function handleLocationError(
+    error
+) {
 
     console.error(
         "GPS ERROR:",
@@ -1674,20 +1865,26 @@ function handleLocationError(error) {
         "Joylashuvni aniqlab bo‘lmadi";
 
 
-    if (error.code === 1) {
+    if (
+        error.code === 1
+    ) {
 
         message =
-            "GPS uchun ruxsat berilmagan";
+            "Telefon GPS ruxsatini bering";
 
-    } else if (error.code === 2) {
-
-        message =
-            "Joylashuv aniqlanmadi";
-
-    } else if (error.code === 3) {
+    } else if (
+        error.code === 2
+    ) {
 
         message =
-            "GPS so‘rovi vaqt tugadi";
+            "Telefon joylashuvni aniqlay olmadi";
+
+    } else if (
+        error.code === 3
+    ) {
+
+        message =
+            "GPS vaqt tugadi. Qayta aniqlanmoqda...";
     }
 
 
@@ -1702,13 +1899,16 @@ function handleLocationError(error) {
    WEBSOCKET SEND
 ========================================================= */
 
-function sendMessage(payload) {
+function sendMessage(
+    payload
+) {
 
     if (
         !state.ws ||
         state.ws.readyState !==
             WebSocket.OPEN
     ) {
+
         return false;
     }
 
@@ -1816,6 +2016,7 @@ function connectWebSocket() {
         state.connected =
             true;
 
+
         state.reconnectAttempts =
             0;
 
@@ -1840,8 +2041,8 @@ function connectWebSocket() {
 
 
         /*
-         * Tugma bosilganda server hali ulanmagan
-         * bo‘lsa, saqlangan amalni shu yerda yuboramiz.
+         * Tugma bosilganda server hali
+         * ulanmagan bo'lsa, saqlangan amal.
          */
 
         if (
@@ -1851,6 +2052,7 @@ function connectWebSocket() {
 
             state.pendingAction =
                 null;
+
 
             sendMessage({
 
@@ -1864,6 +2066,7 @@ function connectWebSocket() {
                     state.userId
             });
 
+
             return;
         }
 
@@ -1875,6 +2078,7 @@ function connectWebSocket() {
 
             state.pendingAction =
                 null;
+
 
             sendMessage({
 
@@ -1891,11 +2095,14 @@ function connectWebSocket() {
                     state.userId
             });
 
+
             return;
         }
 
 
-        if (state.roomCode) {
+        if (
+            state.roomCode
+        ) {
 
             sendMessage({
 
@@ -1956,7 +2163,10 @@ function connectWebSocket() {
 
 function scheduleReconnect() {
 
-    if (state.reconnectTimer) {
+    if (
+        state.reconnectTimer
+    ) {
+
         return;
     }
 
@@ -1985,6 +2195,7 @@ function scheduleReconnect() {
                 state.reconnectTimer =
                     null;
 
+
                 connectWebSocket();
 
             },
@@ -1997,7 +2208,9 @@ function scheduleReconnect() {
    SERVER MESSAGE
 ========================================================= */
 
-function handleServerMessage(raw) {
+function handleServerMessage(
+    raw
+) {
 
     let data;
 
@@ -2034,6 +2247,7 @@ function handleServerMessage(raw) {
     switch (type) {
 
         case "connected":
+
             break;
 
 
@@ -2096,7 +2310,9 @@ function handleServerMessage(raw) {
    ROOM CREATED
 ========================================================= */
 
-function handleRoomCreated(data) {
+function handleRoomCreated(
+    data
+) {
 
     console.log(
         "ROOM CREATED:",
@@ -2131,12 +2347,15 @@ function handleRoomCreated(data) {
 
     showRoom();
 
+
     updateRoomCodeUI();
 
 
     requestAnimationFrame(
         () => {
+
             updateRoomCodeUI();
+
         }
     );
 
@@ -2152,7 +2371,9 @@ function handleRoomCreated(data) {
    JOINED ROOM
 ========================================================= */
 
-function handleJoinedRoom(data) {
+function handleJoinedRoom(
+    data
+) {
 
     const room =
         normalizeRoomCode(
@@ -2174,7 +2395,9 @@ function handleJoinedRoom(data) {
 
     showRoom();
 
+
     updateRoomCodeUI();
+
 
     setRoomError("");
 
@@ -2193,7 +2416,9 @@ function handleJoinedRoom(data) {
    USERS
 ========================================================= */
 
-function handleUsers(data) {
+function handleUsers(
+    data
+) {
 
     const list =
         Array.isArray(
@@ -2226,16 +2451,13 @@ function handleUsers(data) {
             const lat =
                 Number(user.lat);
 
+
             const lng =
                 Number(user.lng);
 
 
-            /*
-             * Faqat haqiqiy koordinatalarni
-             * guruh xaritasiga qo‘shamiz.
-             */
-
             const cleanUser = {
+
                 ...user,
 
                 id:
@@ -2256,12 +2478,19 @@ function handleUsers(data) {
                 Math.abs(lng) <= 180
             ) {
 
-                cleanUser.lat = lat;
-                cleanUser.lng = lng;
+                cleanUser.lat =
+                    lat;
+
+
+                cleanUser.lng =
+                    lng;
+
 
                 if (
                     Number.isFinite(
-                        Number(user.accuracy)
+                        Number(
+                            user.accuracy
+                        )
                     )
                 ) {
 
@@ -2272,11 +2501,6 @@ function handleUsers(data) {
                 }
 
             } else {
-
-                /*
-                 * Noto‘g‘ri koordinatani
-                 * markerga chiqarmaymiz.
-                 */
 
                 delete cleanUser.lat;
                 delete cleanUser.lng;
@@ -2292,26 +2516,36 @@ function handleUsers(data) {
 
 
     /*
-     * Server o‘zimizni qaytarmagan bo‘lsa,
+     * Server o'zimizni qaytarmagan bo'lsa,
      * lokal GPSni saqlaymiz.
      */
 
     if (
         state.currentPosition &&
         !state.users.has(
-            String(state.userId)
+            String(
+                state.userId
+            )
         )
     ) {
 
         state.users.set(
-            String(state.userId),
+
+            String(
+                state.userId
+            ),
+
             {
 
                 id:
-                    String(state.userId),
+                    String(
+                        state.userId
+                    ),
 
                 userId:
-                    String(state.userId),
+                    String(
+                        state.userId
+                    ),
 
                 name:
                     state.userName,
@@ -2331,11 +2565,12 @@ function handleUsers(data) {
 
     updateMembersUI();
 
+
     renderMarkers();
 
 
     console.log(
-        "users",
+        "USERS:",
         Array.from(
             state.users.values()
         )
@@ -2347,7 +2582,9 @@ function handleUsers(data) {
    LEFT ROOM
 ========================================================= */
 
-function handleLeftRoom(data) {
+function handleLeftRoom(
+    data
+) {
 
     const id =
         data.userId ||
@@ -2373,6 +2610,7 @@ function handleLeftRoom(data) {
 
     updateMembersUI();
 
+
     renderMarkers();
 }
 
@@ -2381,7 +2619,9 @@ function handleLeftRoom(data) {
    SERVER ERROR
 ========================================================= */
 
-function handleServerError(data) {
+function handleServerError(
+    data
+) {
 
     const message =
         data.message ||
@@ -2408,6 +2648,7 @@ function handleServerError(data) {
 
         clearRoomSession();
 
+
         state.users.clear();
 
 
@@ -2420,6 +2661,7 @@ function handleServerError(data) {
 
 
         updateMembersUI();
+
 
         showSetup();
     }
@@ -2452,7 +2694,9 @@ function createRoom() {
             "Iltimos, ismingizni kiriting."
         );
 
+
         nameInput?.focus();
+
 
         return;
     }
@@ -2481,6 +2725,7 @@ function createRoom() {
 
 
         connectWebSocket();
+
 
         return;
     }
@@ -2536,7 +2781,9 @@ function joinRoom() {
             "Iltimos, ismingizni kiriting."
         );
 
+
         nameInput?.focus();
+
 
         return;
     }
@@ -2548,7 +2795,9 @@ function joinRoom() {
             "Guruh kodini kiriting."
         );
 
+
         roomInput?.focus();
+
 
         return;
     }
@@ -2556,6 +2805,7 @@ function joinRoom() {
 
     state.userName =
         name;
+
 
     state.roomCode =
         room;
@@ -2580,6 +2830,7 @@ function joinRoom() {
 
 
         connectWebSocket();
+
 
         return;
     }
@@ -2627,7 +2878,9 @@ function switchRoom() {
             "Yangi guruh kodini kiriting."
         );
 
+
         input?.focus();
+
 
         return;
     }
@@ -2825,6 +3078,7 @@ function restoreSession() {
     ) {
 
         showRoom();
+
 
         updateRoomCodeUI();
 
