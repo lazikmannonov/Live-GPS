@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="uz">
 <head>
@@ -11,6 +10,7 @@
     >
 
     <title>Live GPS — Real-time Location</title>
+
 
     <!-- =====================================================
          GOOGLE FONTS
@@ -27,13 +27,20 @@
 
     <!-- =====================================================
          YANDEX MAPS API 3.0
-         
+
          MUHIM:
-         YANGI_YANDEX_API_KEY o'rniga Yandex'dan olgan
-         yangi API keyingizni yozing.
+         YANGI_YANDEX_API_KEY o'rniga Yandex Developer
+         kabinetidan olgan yangi API keyingizni yozing.
+
+         Masalan:
+         apikey=ABC123456&lang=uz_UZ
+
+         &lang=uz_UZ QOLADI.
     ====================================================== -->
 
-    <script src="https://api-maps.yandex.ru/v3/?apikey=fefa16f6-1dcb-4862-80eb-e59209bd56f5&lang=uz_UZ"></script>
+    <script
+        src="https://api-maps.yandex.ru/v3/?apikey=fefa16f6-1dcb-4862-80eb-e59209bd56f5&lang=uz_UZ"
+    ></script>
 
 
     <!-- =====================================================
@@ -727,6 +734,9 @@
 
      Leaflet ishlatilmaydi.
      Yandex Maps 3.0 ishlatiladi.
+
+     Yandex API yuqorida yuklanadi,
+     shundan keyin script.js ishlaydi.
 ===================================================== -->
 
 <script src="script.js"></script>
