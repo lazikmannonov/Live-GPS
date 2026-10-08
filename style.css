@@ -1365,219 +1365,129 @@ body.dark .map-info-card{
     margin:13px 15px;
 }
 
-/* =========================================================
-   PREMIUM GPS MARKER
-========================================================= */
+/* =====================================================
+   PREMIUM GPS MARKER — COMPACT
+===================================================== */
 
 .gps-marker{
     position:relative;
-    width:72px;
-    height:82px;
-
+    width:52px;
+    height:60px;
     display:flex;
     align-items:center;
-    justify-content:flex-start;
     flex-direction:column;
-
     pointer-events:none;
-
-    transform:translateY(-17px);
-
-    filter:drop-shadow(
-        0 8px 14px rgba(0,0,0,.28)
-    );
+    transform:translateY(-10px);
+    filter:drop-shadow(0 5px 9px rgba(0,0,0,.25));
 }
-
-
-/* PIN */
 
 .gps-marker-pin{
     position:relative;
-
-    width:46px;
-    height:46px;
-
+    width:32px;
+    height:32px;
     display:flex;
     align-items:center;
     justify-content:center;
-
-    border-radius:
-        50% 50% 50% 8px;
-
+    border-radius:50% 50% 50% 7px;
     transform:rotate(-45deg);
-
-    border:3px solid rgba(255,255,255,.95);
-
+    border:2px solid rgba(255,255,255,.95);
     box-shadow:
-        0 5px 14px rgba(0,0,0,.25),
-        0 0 0 5px rgba(25,214,107,.12);
-
-    background:
-        linear-gradient(
-            145deg,
-            #38f58b 0%,
-            #0bb765 55%,
-            #078c4d 100%
-        );
+        0 4px 10px rgba(0,0,0,.22),
+        0 0 0 3px rgba(25,214,107,.10);
+    background:linear-gradient(
+        145deg,
+        #38f58b 0%,
+        #0bb765 55%,
+        #078c4d 100%
+    );
 }
 
-
-/* ICHKI OQ NUQTA */
-
 .gps-marker-dot{
-    width:15px;
-    height:15px;
-
+    width:10px;
+    height:10px;
     border-radius:50%;
-
     background:#fff;
-
-    box-shadow:
-        0 2px 7px rgba(0,0,0,.28);
-
+    box-shadow:0 2px 5px rgba(0,0,0,.25);
     transform:rotate(45deg);
 }
 
-
-/* MENING JOYLASHUVIM */
-
 .gps-marker.me .gps-marker-pin{
-
-    background:
-        linear-gradient(
-            145deg,
-            #48ff9a,
-            #10c96b 55%,
-            #07944f
-        );
+    background:linear-gradient(
+        145deg,
+        #48ff9a,
+        #10c96b 55%,
+        #07944f
+    );
 
     box-shadow:
-        0 6px 18px rgba(25,214,107,.42),
-        0 0 0 6px rgba(25,214,107,.13),
-        0 0 28px rgba(25,214,107,.22);
-
-    animation:
-        gpsMarkerPulse 2.2s
-        ease-in-out
-        infinite;
+        0 4px 12px rgba(25,214,107,.35),
+        0 0 0 3px rgba(25,214,107,.10);
 }
-
-
-/* BOSHQA FOYDALANUVCHI */
 
 .gps-marker.other .gps-marker-pin{
-
-    background:
-        linear-gradient(
-            145deg,
-            #5fa4ff,
-            #367ff0 55%,
-            #205bc5
-        );
+    background:linear-gradient(
+        145deg,
+        #5fa4ff,
+        #367ff0 55%,
+        #205bc5
+    );
 
     box-shadow:
-        0 6px 18px rgba(55,127,240,.35),
-        0 0 0 5px rgba(55,127,240,.12);
+        0 4px 12px rgba(55,127,240,.30),
+        0 0 0 3px rgba(55,127,240,.10);
 }
 
-
-/* ISM */
-
 .gps-marker-label{
-
-    margin-top:7px;
-
-    max-width:120px;
-
-    padding:
-        5px 10px;
-
+    margin-top:5px;
+    max-width:90px;
+    padding:3px 7px;
     border-radius:999px;
 
-    background:
-        rgba(15,20,18,.88);
-
+    background:rgba(15,20,18,.88);
     color:#fff;
 
-    font-size:11px;
+    font-size:9px;
     font-weight:700;
-
     line-height:1;
 
     white-space:nowrap;
     overflow:hidden;
     text-overflow:ellipsis;
 
-    border:
-        1px solid rgba(255,255,255,.14);
+    border:1px solid rgba(255,255,255,.12);
 
-    box-shadow:
-        0 5px 16px rgba(0,0,0,.25);
+    box-shadow:0 3px 10px rgba(0,0,0,.20);
 
-    backdrop-filter:
-        blur(10px);
-
-    -webkit-backdrop-filter:
-        blur(10px);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
 }
-
-
-/* MENING ISMIM */
 
 .gps-marker.me .gps-marker-label{
-
-    border-color:
-        rgba(25,214,107,.35);
-
-    box-shadow:
-        0 5px 18px rgba(25,214,107,.16);
+    border-color:rgba(25,214,107,.30);
+    box-shadow:0 3px 10px rgba(25,214,107,.12);
 }
-
-
-/* PULS */
-
-@keyframes gpsMarkerPulse{
-
-    0%,
-    100%{
-        box-shadow:
-            0 6px 18px rgba(25,214,107,.42),
-            0 0 0 5px rgba(25,214,107,.13),
-            0 0 28px rgba(25,214,107,.22);
-    }
-
-    50%{
-        box-shadow:
-            0 8px 22px rgba(25,214,107,.48),
-            0 0 0 10px rgba(25,214,107,.06),
-            0 0 38px rgba(25,214,107,.28);
-    }
-}
-
-
-/* MOBIL */
 
 @media (max-width:600px){
 
     .gps-marker{
-        width:66px;
-        height:76px;
+        width:46px;
+        height:54px;
     }
 
     .gps-marker-pin{
-        width:42px;
-        height:42px;
+        width:28px;
+        height:28px;
     }
 
     .gps-marker-dot{
-        width:13px;
-        height:13px;
+        width:9px;
+        height:9px;
     }
 
     .gps-marker-label{
-        max-width:105px;
-        font-size:10px;
-        padding:4px 8px;
+        max-width:78px;
+        font-size:8px;
+        padding:3px 6px;
     }
 }
 
