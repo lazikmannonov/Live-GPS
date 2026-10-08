@@ -27,6 +27,11 @@ let currentRoomCode =
     localStorage.getItem("gps-room-code") || "";
 
 let pendingAction = null;
+
+/*
+ * Bir WebSocket ulanishida create/join
+ * faqat bir marta yuboriladi.
+ */
 let pendingActionSent = false;
 
 let reconnectTimer = null;
@@ -51,9 +56,11 @@ let users = [];
 
 let savedGroups = [];
 
+let eventsInitialized = false;
+
 
 /* =========================================================
-   ELEMENTS
+   ELEMENT
    ========================================================= */
 
 const $ = id =>
@@ -61,7 +68,7 @@ const $ = id =>
 
 
 /* =========================================================
-   NORMALIZE ROOM CODE
+   ROOM CODE
    ========================================================= */
 
 function normalizeRoomCode(value) {
@@ -71,6 +78,21 @@ function normalizeRoomCode(value) {
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, "")
         .slice(0, 6);
+}
+
+
+/* =========================================================
+   HTML ESCAPE
+   ========================================================= */
+
+function escapeHtml(value) {
+
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 
@@ -101,11 +123,15 @@ function loadSavedGroups() {
                 ? parsed
                 : [];
 
-    } catch {
+    } catch (error) {
+
+        console.error(
+            "Saved groups error:",
+            error
+        );
 
         savedGroups = [];
     }
-
 
     renderSavedGroups();
 }
@@ -117,12 +143,16 @@ function saveSavedGroups() {
 
         localStorage.setItem(
             SAVED_GROUPS_KEY,
-            JSON.stringify(
-                savedGroups
-            )
+            JSON.stringify(savedGroups)
         );
 
-    } catch {}
+    } catch (error) {
+
+        console.error(
+            "Saved groups save error:",
+            error
+        );
+    }
 }
 
 
@@ -132,30 +162,20 @@ function addSavedGroup(
 ) {
 
     roomCode =
-        normalizeRoomCode(
-            roomCode
-        );
-
+        normalizeRoomCode(roomCode);
 
     if (
-        !/^[A-Z0-9]{6}$/.test(
-            roomCode
-        )
+        !/^[A-Z0-9]{6}$/.test(roomCode)
     ) {
         return;
     }
-
 
     name =
         String(
             name || "Guruh"
         )
             .trim()
-            .slice(
-                0,
-                100
-            );
-
+            .slice(0, 100);
 
     savedGroups =
         savedGroups.filter(
@@ -163,30 +183,21 @@ function addSavedGroup(
                 group.code !== roomCode
         );
 
-
     savedGroups.unshift({
         code: roomCode,
-        name:
-            name || "Guruh",
-        savedAt:
-            Date.now()
+        name: name || "Guruh",
+        savedAt: Date.now()
     });
-
 
     if (
         savedGroups.length > 20
     ) {
 
         savedGroups =
-            savedGroups.slice(
-                0,
-                20
-            );
+            savedGroups.slice(0, 20);
     }
 
-
     saveSavedGroups();
-
     renderSavedGroups();
 }
 
@@ -196,10 +207,7 @@ function removeSavedGroup(
 ) {
 
     roomCode =
-        normalizeRoomCode(
-            roomCode
-        );
-
+        normalizeRoomCode(roomCode);
 
     savedGroups =
         savedGroups.filter(
@@ -207,9 +215,7 @@ function removeSavedGroup(
                 group.code !== roomCode
         );
 
-
     saveSavedGroups();
-
     renderSavedGroups();
 }
 
@@ -226,20 +232,14 @@ function renderSavedGroups() {
         $("savedGroupsCount");
 
 
-    if (
-        count
-    ) {
+    if (count) {
 
         count.textContent =
-            String(
-                savedGroups.length
-            );
+            String(savedGroups.length);
     }
 
 
-    if (
-        !list
-    ) {
+    if (!list) {
         return;
     }
 
@@ -270,112 +270,104 @@ function renderSavedGroups() {
     }
 
 
-    savedGroups.forEach(
-        group => {
+    savedGroups.forEach(group => {
 
-            const item =
-                document.createElement(
-                    "div"
-                );
+        const item =
+            document.createElement("div");
 
-            item.className =
-                "saved-group-item";
+        item.className =
+            "saved-group-item";
 
 
-            item.innerHTML = `
-                <div class="saved-group-info">
-                    <strong>
-                        ${escapeHtml(
-                            group.name ||
-                            "Guruh"
-                        )}
-                    </strong>
+        item.innerHTML = `
+            <div class="saved-group-info">
 
-                    <span>
-                        ${escapeHtml(
-                            group.code
-                        )}
-                    </span>
-                </div>
+                <strong>
+                    ${escapeHtml(
+                        group.name || "Guruh"
+                    )}
+                </strong>
 
-                <div class="saved-group-actions">
+                <span>
+                    ${escapeHtml(
+                        group.code
+                    )}
+                </span>
 
-                    <button
-                        type="button"
-                        class="saved-join-btn"
-                    >
-                        Kirish
-                    </button>
+            </div>
 
-                    <button
-                        type="button"
-                        class="saved-delete-btn"
-                        title="O‘chirish"
-                    >
-                        ×
-                    </button>
+            <div class="saved-group-actions">
 
-                </div>
-            `;
+                <button
+                    type="button"
+                    class="saved-join-btn"
+                >
+                    Kirish
+                </button>
 
+                <button
+                    type="button"
+                    class="saved-delete-btn"
+                    title="O‘chirish"
+                >
+                    ×
+                </button>
 
-            const joinButton =
-                item.querySelector(
-                    ".saved-join-btn"
-                );
+            </div>
+        `;
 
 
-            const deleteButton =
-                item.querySelector(
-                    ".saved-delete-btn"
-                );
+        const joinButton =
+            item.querySelector(
+                ".saved-join-btn"
+            );
 
 
-            if (joinButton) {
-
-                joinButton.addEventListener(
-                    "click",
-                    () => {
-
-                        const input =
-                            $("roomCode");
+        const deleteButton =
+            item.querySelector(
+                ".saved-delete-btn"
+            );
 
 
-                        if (input) {
+        if (joinButton) {
 
-                            input.value =
-                                group.code;
-                        }
+            joinButton.addEventListener(
+                "click",
+                () => {
 
+                    const input =
+                        $("roomCode");
 
-                        joinSavedGroup(
-                            group.code,
-                            group.name
-                        );
+                    if (input) {
+                        input.value =
+                            group.code;
                     }
-                );
-            }
 
-
-            if (deleteButton) {
-
-                deleteButton.addEventListener(
-                    "click",
-                    () => {
-
-                        removeSavedGroup(
-                            group.code
-                        );
-                    }
-                );
-            }
-
-
-            list.appendChild(
-                item
+                    joinSavedGroup(
+                        group.code,
+                        group.name
+                    );
+                }
             );
         }
-    );
+
+
+        if (deleteButton) {
+
+            deleteButton.addEventListener(
+                "click",
+                () => {
+
+                    removeSavedGroup(
+                        group.code
+                    );
+                }
+            );
+        }
+
+
+        list.appendChild(item);
+    });
 }
 
 
@@ -385,18 +377,14 @@ function joinSavedGroup(
 ) {
 
     const normalized =
-        normalizeRoomCode(
-            code
-        );
+        normalizeRoomCode(code);
 
 
     if (
-        !/^[A-Z0-9]{6}$/.test(
-            normalized
-        )
+        !/^[A-Z0-9]{6}$/.test(normalized)
     ) {
 
-        showRoomError(
+        showSetupError(
             "Guruh kodi noto‘g‘ri."
         );
 
@@ -408,19 +396,20 @@ function joinSavedGroup(
         $("userName");
 
 
-    let finalName =
+    const finalName =
         String(
             name ||
             currentUserName ||
             nameInput?.value ||
             ""
         )
-            .trim();
+            .trim()
+            .slice(0, 100);
 
 
     if (!finalName) {
 
-        showRoomError(
+        showSetupError(
             "Avval ismingizni kiriting."
         );
 
@@ -431,16 +420,14 @@ function joinSavedGroup(
     currentUserName =
         finalName;
 
+    currentRoomCode =
+        normalized;
+
 
     localStorage.setItem(
         "gps-user-name",
         finalName
     );
-
-
-    currentRoomCode =
-        normalized;
-
 
     localStorage.setItem(
         "gps-room-code",
@@ -448,49 +435,39 @@ function joinSavedGroup(
     );
 
 
-    pendingAction =
-        {
-            type: "join",
-            roomCode: normalized,
-            name: finalName
-        };
+    if (nameInput) {
+        nameInput.value =
+            finalName;
+    }
+
+
+    const roomInput =
+        $("roomCode");
+
+    if (roomInput) {
+        roomInput.value =
+            normalized;
+    }
+
+
+    clearErrors();
+
+
+    pendingAction = {
+        type: "join",
+        roomCode: normalized,
+        name: finalName
+    };
+
+
+    /*
+     * Yangi action bo‘lgani uchun
+     * uni yana yuborishga ruxsat beramiz.
+     */
+    pendingActionSent = false;
 
 
     connectWebSocket();
-}
-
-
-/* =========================================================
-   HTML ESCAPE
-   ========================================================= */
-
-function escapeHtml(
-    value
-) {
-
-    return String(
-        value ?? ""
-    )
-        .replace(
-            /&/g,
-            "&amp;"
-        )
-        .replace(
-            /</g,
-            "&lt;"
-        )
-        .replace(
-            />/g,
-            "&gt;"
-        )
-        .replace(
-            /"/g,
-            "&quot;"
-        )
-        .replace(
-            /'/g,
-            "&#039;"
-        );
 }
 
 
@@ -507,28 +484,70 @@ function setConnectionStatus(
         $("connectionStatus");
 
 
-    if (!element) {
-        return;
+    if (element) {
+
+        element.textContent =
+            text;
+
+        element.classList.remove(
+            "online",
+            "offline",
+            "connecting",
+            "error"
+        );
+
+        if (type) {
+            element.classList.add(type);
+        }
     }
 
 
-    element.textContent =
-        text;
+    /*
+     * HTML yuqorisidagi connectionPill
+     * ham yangilanadi.
+     */
+
+    const pill =
+        $("connectionPill");
+
+    const pillText =
+        $("connectionText");
 
 
-    element.classList.remove(
-        "online",
-        "offline",
-        "connecting",
-        "error"
-    );
+    if (pill) {
 
-
-    if (type) {
-
-        element.classList.add(
-            type
+        pill.classList.remove(
+            "online",
+            "offline",
+            "connecting",
+            "error"
         );
+
+        if (type) {
+            pill.classList.add(type);
+        }
+    }
+
+
+    if (pillText) {
+
+        let topText =
+            text;
+
+        if (type === "online") {
+            topText = "Online";
+        }
+
+        if (type === "offline") {
+            topText = "Offline";
+        }
+
+        if (type === "connecting") {
+            topText = "Ulanmoqda...";
+        }
+
+        pillText.textContent =
+            topText;
     }
 }
 
@@ -568,6 +587,34 @@ function setLocationStatus(
 }
 
 
+/* =========================================================
+   ERROR
+   ========================================================= */
+
+function showSetupError(
+    message
+) {
+
+    const element =
+        $("setupError");
+
+
+    if (element) {
+
+        element.textContent =
+            message;
+
+        element.style.display =
+            "block";
+
+        return;
+    }
+
+
+    alert(message);
+}
+
+
 function showRoomError(
     message
 ) {
@@ -576,22 +623,38 @@ function showRoomError(
         $("roomError");
 
 
-    if (!element) {
+    if (element) {
 
-        alert(
-            message
-        );
+        element.textContent =
+            message;
+
+        element.style.display =
+            "block";
 
         return;
     }
 
 
-    element.textContent =
-        message;
+    alert(message);
+}
 
+
+function clearSetupError() {
+
+    const element =
+        $("setupError");
+
+
+    if (!element) {
+        return;
+    }
+
+
+    element.textContent =
+        "";
 
     element.style.display =
-        "block";
+        "none";
 }
 
 
@@ -609,9 +672,15 @@ function clearRoomError() {
     element.textContent =
         "";
 
-
     element.style.display =
         "none";
+}
+
+
+function clearErrors() {
+
+    clearSetupError();
+    clearRoomError();
 }
 
 
@@ -630,16 +699,19 @@ function showSetup() {
 
     if (setup) {
 
-        setup.style.display =
-            "";
+        setup.classList.remove("hidden");
+        setup.style.display = "";
     }
 
 
     if (room) {
 
-        room.style.display =
-            "none";
+        room.classList.add("hidden");
+        room.style.display = "none";
     }
+
+
+    clearRoomError();
 }
 
 
@@ -654,16 +726,19 @@ function showRoom() {
 
     if (setup) {
 
-        setup.style.display =
-            "none";
+        setup.classList.add("hidden");
+        setup.style.display = "none";
     }
 
 
     if (room) {
 
-        room.style.display =
-            "";
+        room.classList.remove("hidden");
+        room.style.display = "";
     }
+
+
+    clearSetupError();
 }
 
 
@@ -672,9 +747,7 @@ function updateRoomCodeUI(
 ) {
 
     const normalized =
-        normalizeRoomCode(
-            code
-        );
+        normalizeRoomCode(code);
 
 
     const current =
@@ -704,7 +777,7 @@ function updateRoomCodeUI(
 
 
 /* =========================================================
-   WEBSOCKET CONNECT
+   WEBSOCKET URL
    ========================================================= */
 
 function getWebSocketUrl() {
@@ -721,26 +794,25 @@ function getWebSocketUrl() {
     );
 }
 
+
+/* =========================================================
+   CONNECT WEBSOCKET
+   ========================================================= */
+
 function connectWebSocket() {
 
     manuallyClosed = false;
 
 
-    /* =====================================================
-       AGAR WEBSOCKET ALLAQACHON OCHIQ BO'LSA
-       ===================================================== */
+    /*
+     * WebSocket allaqachon ochiq bo‘lsa,
+     * yangi create/join actionni yuboramiz.
+     */
 
     if (
         ws &&
         ws.readyState === WebSocket.OPEN
     ) {
-
-        /*
-         * Yangi create/join action bo'lsa,
-         * uni shu mavjud ulanish orqali yuboramiz.
-         *
-         * pendingActionSent false bo'lishi kerak.
-         */
 
         pendingActionSent = false;
 
@@ -750,9 +822,10 @@ function connectWebSocket() {
     }
 
 
-    /* =====================================================
-       AGAR WEBSOCKET HOZIR ULANAYOTGAN BO'LSA
-       ===================================================== */
+    /*
+     * Hozir ulanayotgan bo‘lsa,
+     * yana yangi socket ochmaymiz.
+     */
 
     if (
         ws &&
@@ -786,15 +859,16 @@ function connectWebSocket() {
             error
         );
 
+        setConnectionStatus(
+            "Ulanish xatosi",
+            "error"
+        );
+
         scheduleReconnect();
 
         return;
     }
 
-
-    /* =====================================================
-       OPEN
-       ===================================================== */
 
     ws.addEventListener(
         "open",
@@ -810,28 +884,20 @@ function connectWebSocket() {
 
 
             /*
-             * BU YERDA sendPendingAction() YO'Q.
+             * BU YERDA ACTION YUBORILMAYDI.
              *
-             * Server avval "connected" yuboradi.
-             * Shundan keyin action yuboriladi.
+             * Serverdan "connected" kelgach
+             * sendPendingAction() ishlaydi.
              */
         }
     );
 
-
-    /* =====================================================
-       MESSAGE
-       ===================================================== */
 
     ws.addEventListener(
         "message",
         handleServerMessage
     );
 
-
-    /* =====================================================
-       ERROR
-       ===================================================== */
 
     ws.addEventListener(
         "error",
@@ -851,10 +917,6 @@ function connectWebSocket() {
     );
 
 
-    /* =====================================================
-       CLOSE
-       ===================================================== */
-
     ws.addEventListener(
         "close",
         () => {
@@ -868,9 +930,7 @@ function connectWebSocket() {
             );
 
 
-            if (
-                !manuallyClosed
-            ) {
+            if (!manuallyClosed) {
 
                 scheduleReconnect();
             }
@@ -878,22 +938,19 @@ function connectWebSocket() {
     );
 }
 
+
 /* =========================================================
    RECONNECT
    ========================================================= */
 
 function scheduleReconnect() {
 
-    if (
-        manuallyClosed
-    ) {
+    if (manuallyClosed) {
         return;
     }
 
 
-    if (
-        reconnectTimer
-    ) {
+    if (reconnectTimer) {
         return;
     }
 
@@ -919,8 +976,7 @@ function scheduleReconnect() {
         setTimeout(
             () => {
 
-                reconnectTimer =
-                    null;
+                reconnectTimer = null;
 
                 connectWebSocket();
 
@@ -950,8 +1006,7 @@ function sendPendingAction() {
 
 
     /*
-     * Bir WebSocket ulanishida
-     * ayni action faqat bir marta yuboriladi.
+     * Bir socket ichida ikki marta yuborilmasin.
      */
 
     if (pendingActionSent) {
@@ -975,6 +1030,11 @@ function sendPendingAction() {
             )
                 .trim()
                 .slice(0, 100);
+
+
+        if (!name) {
+            return;
+        }
 
 
         ws.send(
@@ -1020,6 +1080,20 @@ function sendPendingAction() {
                 .slice(0, 100);
 
 
+        if (
+            !/^[A-Z0-9]{6}$/.test(
+                roomCode
+            )
+        ) {
+            return;
+        }
+
+
+        if (!name) {
+            return;
+        }
+
+
         ws.send(
             JSON.stringify({
 
@@ -1039,13 +1113,12 @@ function sendPendingAction() {
     }
 }
 
+
 /* =========================================================
    SERVER MESSAGE
    ========================================================= */
 
-function handleServerMessage(
-    event
-) {
+function handleServerMessage(event) {
 
     let data = null;
 
@@ -1057,7 +1130,7 @@ function handleServerMessage(
                 event.data
             );
 
-    } catch {
+    } catch (error) {
 
         console.error(
             "Server JSON xatosi:",
@@ -1078,49 +1151,20 @@ function handleServerMessage(
        CONNECTED
        ===================================================== */
 
- if (
-    data.type === "connected"
-) {
-
     if (
-        !currentUserId &&
-        data.userId
+        data.type === "connected"
     ) {
 
-        currentUserId =
-            String(
-                data.userId
-            );
-
-
-        localStorage.setItem(
-            "gps-user-id",
-            currentUserId
-        );
-    }
-
-
-    sendPendingAction();
-
-    return;
-}
-  
-    /* =====================================================
-       ROOM CREATED
-       ===================================================== */
-
-    if (
-        data.type ===
-        "room-created"
-    ) {
-
-        const code =
-            normalizeRoomCode(
-                data.roomCode
-            );
-
+        /*
+         * Agar bizda saqlangan ID mavjud bo‘lsa,
+         * uni yangi socket ID bilan almashtirmaymiz.
+         *
+         * Shu orqali F5/reconnect bir xil user
+         * sifatida davom etadi.
+         */
 
         if (
+            !currentUserId &&
             data.userId
         ) {
 
@@ -1134,6 +1178,59 @@ function handleServerMessage(
                 "gps-user-id",
                 currentUserId
             );
+        }
+
+
+        sendPendingAction();
+
+        return;
+    }
+
+
+    /* =====================================================
+       ROOM CREATED
+       ===================================================== */
+
+    if (
+        data.type === "room-created"
+    ) {
+
+        const code =
+            normalizeRoomCode(
+                data.roomCode
+            );
+
+
+        if (
+            data.userId &&
+            !currentUserId
+        ) {
+
+            currentUserId =
+                String(
+                    data.userId
+                );
+
+
+            localStorage.setItem(
+                "gps-user-id",
+                currentUserId
+            );
+        }
+
+
+        if (
+            !/^[A-Z0-9]{6}$/.test(code)
+        ) {
+
+            pendingAction = null;
+            pendingActionSent = false;
+
+            showSetupError(
+                "Server noto‘g‘ri guruh kodi yubordi."
+            );
+
+            return;
         }
 
 
@@ -1154,26 +1251,40 @@ function handleServerMessage(
         );
 
 
-        updateRoomCodeUI(
-            code
-        );
+        updateRoomCodeUI(code);
 
 
-        pendingAction =
-            null;
+        pendingAction = null;
+        pendingActionSent = false;
+
+
+        users = [];
+
+
+        renderUsers();
 
 
         showRoom();
 
-        clearRoomError();
 
-        startLocationTracking();
+        clearErrors();
 
 
         setConnectionStatus(
             "Ulangan",
             "online"
         );
+
+
+        /*
+         * Xona endi ko‘rinadigan bo‘ldi.
+         * Xarita aynan shundan keyin ishga tushadi.
+         */
+
+        initMap();
+
+
+        startLocationTracking();
 
 
         return;
@@ -1185,8 +1296,7 @@ function handleServerMessage(
        ===================================================== */
 
     if (
-        data.type ===
-        "joined-room"
+        data.type === "joined-room"
     ) {
 
         const code =
@@ -1196,7 +1306,30 @@ function handleServerMessage(
 
 
         if (
-            data.userId
+            !/^[A-Z0-9]{6}$/.test(code)
+        ) {
+
+            pendingAction = null;
+            pendingActionSent = false;
+
+            showSetupError(
+                "Server noto‘g‘ri guruh kodi yubordi."
+            );
+
+            showSetup();
+
+            return;
+        }
+
+
+        /*
+         * Faqat bizda userId bo‘lmaganida
+         * server ID'sini qabul qilamiz.
+         */
+
+        if (
+            data.userId &&
+            !currentUserId
         ) {
 
             currentUserId =
@@ -1229,27 +1362,34 @@ function handleServerMessage(
         );
 
 
-        updateRoomCodeUI(
-            code
-        );
+        updateRoomCodeUI(code);
 
 
-        pendingAction =
-            null;
+        pendingAction = null;
+        pendingActionSent = false;
+
+
+        clearErrors();
 
 
         showRoom();
-
-        clearRoomError();
-
-
-        startLocationTracking();
 
 
         setConnectionStatus(
             "Ulangan",
             "online"
         );
+
+
+        /*
+         * Avval xaritani ko‘rinadigan qilamiz,
+         * keyin Yandex Maps'ni ishga tushiramiz.
+         */
+
+        initMap();
+
+
+        startLocationTracking();
 
 
         return;
@@ -1261,8 +1401,7 @@ function handleServerMessage(
        ===================================================== */
 
     if (
-        data.type ===
-        "users"
+        data.type === "users"
     ) {
 
         users =
@@ -1274,6 +1413,7 @@ function handleServerMessage(
 
 
         renderUsers();
+
 
         updateMapUsers();
 
@@ -1287,8 +1427,7 @@ function handleServerMessage(
        ===================================================== */
 
     if (
-        data.type ===
-        "error"
+        data.type === "error"
     ) {
 
         console.error(
@@ -1297,14 +1436,44 @@ function handleServerMessage(
         );
 
 
-        pendingAction =
-            null;
+        /*
+         * Action bajarilmadi.
+         * Foydalanuvchi qayta bosishi mumkin.
+         */
+
+        pendingAction = null;
+        pendingActionSent = false;
 
 
-        showRoomError(
+        const message =
             data.message ||
-            "Xatolik yuz berdi."
-        );
+            "Xatolik yuz berdi.";
+
+
+        /*
+         * Qaysi sahifada bo‘lsak,
+         * xatoni o‘sha joyda ko‘rsatamiz.
+         */
+
+        const roomVisible =
+            $("roomCard") &&
+            !$("roomCard").classList.contains(
+                "hidden"
+            );
+
+
+        if (roomVisible) {
+
+            showRoomError(
+                message
+            );
+
+        } else {
+
+            showSetupError(
+                message
+            );
+        }
 
 
         return;
@@ -1316,12 +1485,10 @@ function handleServerMessage(
        ===================================================== */
 
     if (
-        data.type ===
-        "left-room"
+        data.type === "left-room"
     ) {
 
-        currentRoomCode =
-            "";
+        currentRoomCode = "";
 
 
         localStorage.removeItem(
@@ -1329,10 +1496,17 @@ function handleServerMessage(
         );
 
 
+        pendingAction = null;
+        pendingActionSent = false;
+
+
         stopLocationTracking();
 
 
         users = [];
+
+
+        renderUsers();
 
 
         clearMapMarkers();
@@ -1358,7 +1532,7 @@ function handleServerMessage(
 
 function createRoom() {
 
-    clearRoomError();
+    clearErrors();
 
 
     const input =
@@ -1371,15 +1545,12 @@ function createRoom() {
             ""
         )
             .trim()
-            .slice(
-                0,
-                100
-            );
+            .slice(0, 100);
 
 
     if (!name) {
 
-        showRoomError(
+        showSetupError(
             "Avval ismingizni kiriting."
         );
 
@@ -1399,13 +1570,23 @@ function createRoom() {
     );
 
 
+    /*
+     * Eski roomni create paytida
+     * yangi room bilan aralashtirmaymiz.
+     */
+
+    currentRoomCode = "";
+
+
     pendingAction = {
 
-        type:
-            "create",
+        type: "create",
 
         name
     };
+
+
+    pendingActionSent = false;
 
 
     connectWebSocket();
@@ -1418,12 +1599,11 @@ function createRoom() {
 
 function joinRoom() {
 
-    clearRoomError();
+    clearErrors();
 
 
     const nameInput =
         $("userName");
-
 
     const codeInput =
         $("roomCode");
@@ -1435,10 +1615,7 @@ function joinRoom() {
             ""
         )
             .trim()
-            .slice(
-                0,
-                100
-            );
+            .slice(0, 100);
 
 
     const roomCode =
@@ -1449,7 +1626,7 @@ function joinRoom() {
 
     if (!name) {
 
-        showRoomError(
+        showSetupError(
             "Avval ismingizni kiriting."
         );
 
@@ -1465,8 +1642,8 @@ function joinRoom() {
         )
     ) {
 
-        showRoomError(
-            "Guruh kodi 6 ta harfdan yoki raqamdan iborat bo‘lishi kerak."
+        showSetupError(
+            "Guruh kodi 6 ta harf yoki raqamdan iborat bo‘lishi kerak."
         );
 
         codeInput?.focus();
@@ -1496,7 +1673,6 @@ function joinRoom() {
 
 
     if (codeInput) {
-
         codeInput.value =
             roomCode;
     }
@@ -1504,8 +1680,7 @@ function joinRoom() {
 
     pendingAction = {
 
-        type:
-            "join",
+        type: "join",
 
         roomCode,
 
@@ -1513,12 +1688,15 @@ function joinRoom() {
     };
 
 
+    pendingActionSent = false;
+
+
     connectWebSocket();
 }
 
 
 /* =========================================================
-   F5 RESTORE
+   RESTORE SESSION
    ========================================================= */
 
 function restoreSession() {
@@ -1540,29 +1718,47 @@ function restoreSession() {
     }
 
 
+    /*
+     * F5:
+     * saqlangan xona mavjud bo‘lsa,
+     * qayta ulanamiz.
+     */
+
     if (
         currentRoomCode &&
         currentUserName
     ) {
 
-        pendingAction = {
-
-            type:
-                "join",
-
-            roomCode:
-                normalizeRoomCode(
-                    currentRoomCode
-                ),
-
-            name:
-                currentUserName
-        };
+        const normalized =
+            normalizeRoomCode(
+                currentRoomCode
+            );
 
 
-        connectWebSocket();
+        if (
+            /^[A-Z0-9]{6}$/.test(
+                normalized
+            )
+        ) {
 
-        return;
+            pendingAction = {
+
+                type: "join",
+
+                roomCode: normalized,
+
+                name:
+                    currentUserName
+            };
+
+
+            pendingActionSent = false;
+
+
+            connectWebSocket();
+
+            return;
+        }
     }
 
 
@@ -1604,6 +1800,7 @@ function startLocationTracking() {
 
     watchId =
         navigator.geolocation.watchPosition(
+
             position => {
 
                 const coords =
@@ -1638,7 +1835,11 @@ function startLocationTracking() {
 
 
                 sendLocation();
+
+
+                renderUsers();
             },
+
 
             error => {
 
@@ -1653,24 +1854,21 @@ function startLocationTracking() {
 
 
                 if (
-                    error.code ===
-                    1
+                    error.code === 1
                 ) {
 
                     message =
                         "Joylashuvga ruxsat berilmagan.";
 
                 } else if (
-                    error.code ===
-                    2
+                    error.code === 2
                 ) {
 
                     message =
                         "Joylashuv aniqlanmadi.";
 
                 } else if (
-                    error.code ===
-                    3
+                    error.code === 3
                 ) {
 
                     message =
@@ -1684,15 +1882,13 @@ function startLocationTracking() {
                 );
             },
 
+
             {
-                enableHighAccuracy:
-                    true,
+                enableHighAccuracy: true,
 
-                maximumAge:
-                    5000,
+                maximumAge: 5000,
 
-                timeout:
-                    15000
+                timeout: 15000
             }
         );
 }
@@ -1709,19 +1905,13 @@ function stopLocationTracking() {
         );
 
 
-        watchId =
-            null;
+        watchId = null;
     }
 
 
-    myLatitude =
-        null;
-
-    myLongitude =
-        null;
-
-    myAccuracy =
-        null;
+    myLatitude = null;
+    myLongitude = null;
+    myAccuracy = null;
 
 
     setLocationStatus(
@@ -1739,27 +1929,20 @@ function sendLocation() {
 
     if (
         !ws ||
-        ws.readyState !==
-        WebSocket.OPEN
+        ws.readyState !== WebSocket.OPEN
     ) {
         return;
     }
 
 
-    if (
-        !currentRoomCode
-    ) {
+    if (!currentRoomCode) {
         return;
     }
 
 
     if (
-        !Number.isFinite(
-            myLatitude
-        ) ||
-        !Number.isFinite(
-            myLongitude
-        )
+        !Number.isFinite(myLatitude) ||
+        !Number.isFinite(myLongitude)
     ) {
         return;
     }
@@ -1768,19 +1951,14 @@ function sendLocation() {
     ws.send(
         JSON.stringify({
 
-            type:
-                "location",
+            type: "location",
 
-            lat:
-                myLatitude,
+            lat: myLatitude,
 
-            lng:
-                myLongitude,
+            lng: myLongitude,
 
             accuracy:
-                Number.isFinite(
-                    myAccuracy
-                )
+                Number.isFinite(myAccuracy)
                     ? myAccuracy
                     : null
         })
@@ -1789,23 +1967,20 @@ function sendLocation() {
 
 
 /* =========================================================
-   NAME UPDATE
+   NAME
    ========================================================= */
 
 function sendName() {
 
     if (
         !ws ||
-        ws.readyState !==
-        WebSocket.OPEN
+        ws.readyState !== WebSocket.OPEN
     ) {
         return;
     }
 
 
-    if (
-        !currentRoomCode
-    ) {
+    if (!currentRoomCode) {
         return;
     }
 
@@ -1821,10 +1996,7 @@ function sendName() {
             ""
         )
             .trim()
-            .slice(
-                0,
-                100
-            );
+            .slice(0, 100);
 
 
     if (!name) {
@@ -1845,8 +2017,7 @@ function sendName() {
     ws.send(
         JSON.stringify({
 
-            type:
-                "name",
+            type: "name",
 
             name
         })
@@ -1862,7 +2033,6 @@ function renderUsers() {
 
     const list =
         $("membersList");
-
 
     const count =
         $("membersCount");
@@ -1897,7 +2067,7 @@ function renderUsers() {
     ) {
 
         list.innerHTML = `
-            <div class="member-empty">
+            <div class="empty-members">
                 Hozircha guruhda hech kim yo‘q.
             </div>
         `;
@@ -1906,139 +2076,129 @@ function renderUsers() {
     }
 
 
-    users.forEach(
-        user => {
+    users.forEach(user => {
 
-            const item =
-                document.createElement(
-                    "div"
+        const item =
+            document.createElement("div");
+
+
+        item.className =
+            "member-item";
+
+
+        const isMe =
+            String(user.id) ===
+            String(currentUserId);
+
+
+        const onlineClass =
+            user.online
+                ? "online"
+                : "offline";
+
+
+        const statusText =
+            user.online
+                ? "Online"
+                : "Offline";
+
+
+        let distanceText = "";
+
+
+        if (isMe) {
+
+            distanceText =
+                "Siz";
+
+        } else if (
+
+            Number.isFinite(
+                Number(user.lat)
+            ) &&
+
+            Number.isFinite(
+                Number(user.lng)
+            ) &&
+
+            Number.isFinite(
+                myLatitude
+            ) &&
+
+            Number.isFinite(
+                myLongitude
+            )
+
+        ) {
+
+            const distance =
+                calculateDistance(
+
+                    myLatitude,
+
+                    myLongitude,
+
+                    Number(user.lat),
+
+                    Number(user.lng)
                 );
 
 
-            item.className =
-                "member-item";
-
-
-            const isMe =
-                String(
-                    user.id
-                ) ===
-                String(
-                    currentUserId
+            distanceText =
+                formatDistance(
+                    distance
                 );
-
-
-            const onlineClass =
-                user.online
-                    ? "online"
-                    : "offline";
-
-
-            const statusText =
-                user.online
-                    ? "Online"
-                    : "Offline";
-
-
-            let distanceText =
-                "";
-
-
-            if (
-                isMe
-            ) {
-
-                distanceText =
-                    "Siz";
-
-            } else if (
-                Number.isFinite(
-                    Number(
-                        user.lat
-                    )
-                ) &&
-                Number.isFinite(
-                    Number(
-                        user.lng
-                    )
-                ) &&
-                Number.isFinite(
-                    myLatitude
-                ) &&
-                Number.isFinite(
-                    myLongitude
-                )
-            ) {
-
-                const distance =
-                    calculateDistance(
-                        myLatitude,
-                        myLongitude,
-                        Number(
-                            user.lat
-                        ),
-                        Number(
-                            user.lng
-                        )
-                    );
-
-
-                distanceText =
-                    formatDistance(
-                        distance
-                    );
-            }
-
-
-            item.innerHTML = `
-                <div class="member-avatar">
-                    ${escapeHtml(
-                        (
-                            user.name ||
-                            "N"
-                        )
-                            .charAt(0)
-                            .toUpperCase()
-                    )}
-                </div>
-
-                <div class="member-info">
-
-                    <strong>
-                        ${escapeHtml(
-                            user.name ||
-                            "Noma'lum"
-                        )}
-
-                        ${
-                            isMe
-                                ? " <small>(siz)</small>"
-                                : ""
-                        }
-                    </strong>
-
-                    <span>
-                        ${
-                            distanceText ||
-                            statusText
-                        }
-                    </span>
-
-                </div>
-
-                <span
-                    class="member-status ${onlineClass}"
-                >
-                    ${statusText}
-                </span>
-            `;
-
-
-            list.appendChild(
-                item
-            );
         }
-    );
+
+
+        item.innerHTML = `
+            <div class="member-avatar">
+                ${escapeHtml(
+                    (
+                        user.name ||
+                        "N"
+                    )
+                        .charAt(0)
+                        .toUpperCase()
+                )}
+            </div>
+
+            <div class="member-info">
+
+                <strong>
+
+                    ${escapeHtml(
+                        user.name ||
+                        "Noma'lum"
+                    )}
+
+                    ${
+                        isMe
+                            ? " <small>(siz)</small>"
+                            : ""
+                    }
+
+                </strong>
+
+                <span>
+                    ${
+                        distanceText ||
+                        statusText
+                    }
+                </span>
+
+            </div>
+
+            <span
+                class="member-status ${onlineClass}"
+            >
+                ${statusText}
+            </span>
+        `;
+
+
+        list.appendChild(item);
+    });
 }
 
 
@@ -2053,8 +2213,7 @@ function calculateDistance(
     lon2
 ) {
 
-    const R =
-        6371000;
+    const R = 6371000;
 
 
     const toRad =
@@ -2077,28 +2236,24 @@ function calculateDistance(
 
 
     const a =
-        Math.sin(
-            dLat / 2
-        ) ** 2 +
+        Math.sin(dLat / 2) ** 2 +
 
         Math.cos(
             toRad(lat1)
         ) *
+
         Math.cos(
             toRad(lat2)
         ) *
-        Math.sin(
-            dLon / 2
-        ) ** 2;
+
+        Math.sin(dLon / 2) ** 2;
 
 
     const c =
         2 *
         Math.atan2(
             Math.sqrt(a),
-            Math.sqrt(
-                1 - a
-            )
+            Math.sqrt(1 - a)
         );
 
 
@@ -2167,22 +2322,19 @@ async function initMap() {
         const {
             YMap,
             YMapDefaultSchemeLayer,
-            YMapDefaultFeaturesLayer,
-            YMapMarker
+            YMapDefaultFeaturesLayer
         } = ymaps3;
 
 
         const center =
-            Number.isFinite(
-                myLatitude
-            ) &&
-            Number.isFinite(
-                myLongitude
-            )
+            Number.isFinite(myLatitude) &&
+            Number.isFinite(myLongitude)
+
                 ? [
                     myLongitude,
                     myLatitude
                 ]
+
                 : [
                     69.2401,
                     41.2995
@@ -2194,7 +2346,9 @@ async function initMap() {
                 mapElement,
                 {
                     location: {
+
                         center,
+
                         zoom: 12
                     }
                 }
@@ -2211,13 +2365,23 @@ async function initMap() {
         );
 
 
-        mapInitialized =
-            true;
+        mapInitialized = true;
 
 
-        updateMyMarker();
+        /*
+         * Map DOM endi ko‘rinadigan holatda.
+         */
 
-        updateMapUsers();
+        setTimeout(
+            () => {
+
+                updateMyMarker();
+
+                updateMapUsers();
+
+            },
+            100
+        );
 
 
     } catch (error) {
@@ -2231,7 +2395,7 @@ async function initMap() {
 
 
 /* =========================================================
-   CREATE MARKER
+   MARKER ELEMENT
    ========================================================= */
 
 function createMarkerElement(
@@ -2240,9 +2404,7 @@ function createMarkerElement(
 ) {
 
     const element =
-        document.createElement(
-            "div"
-        );
+        document.createElement("div");
 
 
     element.className =
@@ -2253,6 +2415,7 @@ function createMarkerElement(
 
     element.innerHTML = `
         <div class="gps-marker-dot"></div>
+
         <div class="gps-marker-label">
             ${escapeHtml(
                 user.name ||
@@ -2281,21 +2444,12 @@ function updateMyMarker() {
 
 
     if (
-        !Number.isFinite(
-            myLatitude
-        ) ||
-        !Number.isFinite(
-            myLongitude
-        )
+        !Number.isFinite(myLatitude) ||
+        !Number.isFinite(myLongitude)
     ) {
         return;
     }
 
-
-    /*
-     * Yandex Maps v3 marker yaratish
-     * uchun map entity kerak.
-     */
 
     if (
         typeof ymaps3 ===
@@ -2306,7 +2460,9 @@ function updateMyMarker() {
 
 
     const position = [
+
         myLongitude,
+
         myLatitude
     ];
 
@@ -2333,9 +2489,7 @@ function updateMyMarker() {
 
     try {
 
-        if (
-            !myMarker
-        ) {
+        if (!myMarker) {
 
             const markerElement =
                 createMarkerElement(
@@ -2385,8 +2539,7 @@ function updateMapUsers() {
     if (
         !mapInitialized ||
         !map ||
-        typeof ymaps3 ===
-        "undefined"
+        typeof ymaps3 === "undefined"
     ) {
         return;
     }
@@ -2396,116 +2549,110 @@ function updateMapUsers() {
         new Set();
 
 
-    users.forEach(
-        user => {
+    users.forEach(user => {
 
-            const id =
-                String(
-                    user.id
-                );
-
-
-            if (
-                id ===
-                String(
-                    currentUserId
-                )
-            ) {
-                return;
-            }
-
-
-            if (
-                !Number.isFinite(
-                    Number(
-                        user.lat
-                    )
-                ) ||
-                !Number.isFinite(
-                    Number(
-                        user.lng
-                    )
-                )
-            ) {
-                return;
-            }
-
-
-            activeIds.add(
-                id
+        const id =
+            String(
+                user.id
             );
 
 
-            const position = [
-                Number(
-                    user.lng
-                ),
-                Number(
-                    user.lat
-                )
-            ];
+        /*
+         * O'z markerimiz alohida.
+         */
+
+        if (
+            id ===
+            String(currentUserId)
+        ) {
+            return;
+        }
 
 
-            try {
+        /*
+         * Faqat koordinatasi bor user.
+         */
 
-                if (
-                    userMarkers.has(id)
-                ) {
-
-                    const marker =
-                        userMarkers.get(
-                            id
-                        );
-
-
-                    marker.update({
-                        coordinates:
-                            position
-                    });
-
-                } else {
-
-                    const element =
-                        createMarkerElement(
-                            user,
-                            false
-                        );
+        if (
+            !Number.isFinite(
+                Number(user.lat)
+            ) ||
+            !Number.isFinite(
+                Number(user.lng)
+            )
+        ) {
+            return;
+        }
 
 
-                    const marker =
-                        new ymaps3.YMapMarker(
-                            {
-                                coordinates:
-                                    position
-                            },
-                            element
-                        );
+        activeIds.add(id);
 
 
-                    map.addChild(
-                        marker
+        const position = [
+
+            Number(user.lng),
+
+            Number(user.lat)
+        ];
+
+
+        try {
+
+            if (
+                userMarkers.has(id)
+            ) {
+
+                const marker =
+                    userMarkers.get(id);
+
+
+                marker.update({
+                    coordinates:
+                        position
+                });
+
+            } else {
+
+                const element =
+                    createMarkerElement(
+                        user,
+                        false
                     );
 
 
-                    userMarkers.set(
-                        id,
-                        marker
+                const marker =
+                    new ymaps3.YMapMarker(
+                        {
+                            coordinates:
+                                position
+                        },
+                        element
                     );
-                }
 
-            } catch (error) {
 
-                console.error(
-                    "User marker error:",
-                    error
+                map.addChild(
+                    marker
+                );
+
+
+                userMarkers.set(
+                    id,
+                    marker
                 );
             }
+
+        } catch (error) {
+
+            console.error(
+                "User marker error:",
+                error
+            );
         }
-    );
+    });
 
 
     /*
-     * Endi mavjud bo‘lmagan markerlarni o‘chiramiz.
+     * Yo‘qolgan markerlarni o‘chiramiz.
      */
 
     for (
@@ -2526,19 +2673,17 @@ function updateMapUsers() {
                     marker
                 );
 
-            } catch {}
+            } catch (error) {}
 
 
-            userMarkers.delete(
-                id
-            );
+            userMarkers.delete(id);
         }
     }
 }
 
 
 /* =========================================================
-   CLEAR MAP
+   CLEAR MARKERS
    ========================================================= */
 
 function clearMapMarkers() {
@@ -2554,17 +2699,14 @@ function clearMapMarkers() {
                 myMarker
             );
 
-        } catch {}
+        } catch (error) {}
     }
 
 
-    myMarker =
-        null;
+    myMarker = null;
 
 
-    if (
-        map
-    ) {
+    if (map) {
 
         for (
             const marker
@@ -2577,7 +2719,7 @@ function clearMapMarkers() {
                     marker
                 );
 
-            } catch {}
+            } catch (error) {}
         }
     }
 
@@ -2592,20 +2734,17 @@ function clearMapMarkers() {
 
 function centerMapOnMe() {
 
-    if (
-        !map
-    ) {
+    if (!map) {
+
+        initMap();
+
         return;
     }
 
 
     if (
-        !Number.isFinite(
-            myLatitude
-        ) ||
-        !Number.isFinite(
-            myLongitude
-        )
+        !Number.isFinite(myLatitude) ||
+        !Number.isFinite(myLongitude)
     ) {
 
         startLocationTracking();
@@ -2617,8 +2756,11 @@ function centerMapOnMe() {
     try {
 
         map.setLocation({
+
             center: [
+
                 myLongitude,
+
                 myLatitude
             ],
 
@@ -2668,17 +2810,20 @@ async function copyRoomCode() {
         if (button) {
 
             const oldText =
-                button.textContent;
+                button.innerHTML;
 
 
-            button.textContent =
-                "✓ Nusxalandi";
+            button.innerHTML =
+                `
+                <span>✓</span>
+                <span>Nusxalandi</span>
+                `;
 
 
             setTimeout(
                 () => {
 
-                    button.textContent =
+                    button.innerHTML =
                         oldText;
 
                 },
@@ -2686,7 +2831,7 @@ async function copyRoomCode() {
             );
         }
 
-    } catch {
+    } catch (error) {
 
         const textarea =
             document.createElement(
@@ -2712,7 +2857,7 @@ async function copyRoomCode() {
                 "copy"
             );
 
-        } catch {}
+        } catch (copyError) {}
 
 
         textarea.remove();
@@ -2728,8 +2873,8 @@ function leaveGroup() {
 
     if (
         ws &&
-        ws.readyState ===
-        WebSocket.OPEN
+        ws.readyState === WebSocket.OPEN &&
+        currentRoomCode
     ) {
 
         ws.send(
@@ -2741,8 +2886,7 @@ function leaveGroup() {
     }
 
 
-    currentRoomCode =
-        "";
+    currentRoomCode = "";
 
 
     localStorage.removeItem(
@@ -2750,8 +2894,8 @@ function leaveGroup() {
     );
 
 
-    pendingAction =
-        null;
+    pendingAction = null;
+    pendingActionSent = false;
 
 
     users = [];
@@ -2763,7 +2907,16 @@ function leaveGroup() {
     clearMapMarkers();
 
 
+    renderUsers();
+
+
     showSetup();
+
+
+    setConnectionStatus(
+        "Ulangan",
+        "online"
+    );
 }
 
 
@@ -2772,6 +2925,9 @@ function leaveGroup() {
    ========================================================= */
 
 function switchRoom() {
+
+    clearErrors();
+
 
     const input =
         $("switchRoomInput");
@@ -2784,9 +2940,7 @@ function switchRoom() {
 
 
     if (
-        !/^[A-Z0-9]{6}$/.test(
-            code
-        )
+        !/^[A-Z0-9]{6}$/.test(code)
     ) {
 
         showRoomError(
@@ -2816,10 +2970,13 @@ function switchRoom() {
     }
 
 
+    /*
+     * Avval eski guruhdan chiqamiz.
+     */
+
     if (
         ws &&
-        ws.readyState ===
-        WebSocket.OPEN &&
+        ws.readyState === WebSocket.OPEN &&
         currentRoomCode
     ) {
 
@@ -2830,6 +2987,15 @@ function switchRoom() {
             })
         );
     }
+
+
+    users = [];
+
+
+    clearMapMarkers();
+
+
+    stopLocationTracking();
 
 
     currentRoomCode =
@@ -2844,14 +3010,15 @@ function switchRoom() {
 
     pendingAction = {
 
-        type:
-            "join",
+        type: "join",
 
-        roomCode:
-            code,
+        roomCode: code,
 
         name
     };
+
+
+    pendingActionSent = false;
 
 
     connectWebSocket();
@@ -2871,14 +3038,10 @@ function applyTheme(
 
 
     if (
-        theme ===
-        "dark"
+        theme === "dark"
     ) {
 
-        root.classList.add(
-            "dark"
-        );
-
+        root.classList.add("dark");
 
         document.body?.classList.add(
             "dark"
@@ -2886,10 +3049,7 @@ function applyTheme(
 
     } else {
 
-        root.classList.remove(
-            "dark"
-        );
-
+        root.classList.remove("dark");
 
         document.body?.classList.remove(
             "dark"
@@ -2907,12 +3067,34 @@ function applyTheme(
         $("themeBtn");
 
 
+    const icon =
+        $("themeIcon");
+
+
     if (button) {
+
+        button.setAttribute(
+            "aria-label",
+            theme === "dark"
+                ? "Yorug‘ rejim"
+                : "Tungi rejim"
+        );
+    }
+
+
+    if (icon) {
+
+        icon.textContent =
+            theme === "dark"
+                ? "☀"
+                : "☾";
+
+    } else if (button) {
 
         button.textContent =
             theme === "dark"
-                ? "☀️"
-                : "🌙";
+                ? "☀"
+                : "☾";
     }
 }
 
@@ -2939,6 +3121,16 @@ function toggleTheme() {
 
 function setupEvents() {
 
+    if (eventsInitialized) {
+        return;
+    }
+
+
+    eventsInitialized = true;
+
+
+    /* CREATE */
+
     const createButton =
         $("createRoomBtn");
 
@@ -2951,6 +3143,8 @@ function setupEvents() {
         );
     }
 
+
+    /* JOIN */
 
     const joinButton =
         $("joinRoomBtn");
@@ -2965,6 +3159,8 @@ function setupEvents() {
     }
 
 
+    /* COPY */
+
     const copyButton =
         $("copyRoomBtn");
 
@@ -2977,6 +3173,8 @@ function setupEvents() {
         );
     }
 
+
+    /* MY LOCATION */
 
     const myLocationButton =
         $("myLocationBtn");
@@ -2996,6 +3194,8 @@ function setupEvents() {
     }
 
 
+    /* CENTER */
+
     const centerButton =
         $("centerMapBtn");
 
@@ -3008,6 +3208,8 @@ function setupEvents() {
         );
     }
 
+
+    /* SWITCH */
 
     const switchButton =
         $("switchRoomBtn");
@@ -3022,6 +3224,8 @@ function setupEvents() {
     }
 
 
+    /* LEAVE */
+
     const leaveButton =
         $("leaveGroupBtn");
 
@@ -3035,6 +3239,8 @@ function setupEvents() {
     }
 
 
+    /* THEME */
+
     const themeButton =
         $("themeBtn");
 
@@ -3047,6 +3253,8 @@ function setupEvents() {
         );
     }
 
+
+    /* NAME */
 
     const nameInput =
         $("userName");
@@ -3064,10 +3272,7 @@ function setupEvents() {
                         ""
                     )
                         .trim()
-                        .slice(
-                            0,
-                            100
-                        );
+                        .slice(0, 100);
 
 
                 localStorage.setItem(
@@ -3087,6 +3292,8 @@ function setupEvents() {
     }
 
 
+    /* ROOM CODE */
+
     const roomInput =
         $("roomCode");
 
@@ -3097,14 +3304,12 @@ function setupEvents() {
             "input",
             () => {
 
-                const value =
+                roomInput.value =
                     normalizeRoomCode(
                         roomInput.value
                     );
 
-
-                roomInput.value =
-                    value;
+                clearSetupError();
             }
         );
 
@@ -3114,8 +3319,7 @@ function setupEvents() {
             event => {
 
                 if (
-                    event.key ===
-                    "Enter"
+                    event.key === "Enter"
                 ) {
 
                     event.preventDefault();
@@ -3126,6 +3330,8 @@ function setupEvents() {
         );
     }
 
+
+    /* SWITCH INPUT */
 
     const switchInput =
         $("switchRoomInput");
@@ -3141,6 +3347,8 @@ function setupEvents() {
                     normalizeRoomCode(
                         switchInput.value
                     );
+
+                clearRoomError();
             }
         );
 
@@ -3150,8 +3358,7 @@ function setupEvents() {
             event => {
 
                 if (
-                    event.key ===
-                    "Enter"
+                    event.key === "Enter"
                 ) {
 
                     event.preventDefault();
@@ -3180,6 +3387,10 @@ window.GPS_DEBUG = {
 
             currentRoomCode,
 
+            pendingAction,
+
+            pendingActionSent,
+
             connected:
                 !!(
                     ws &&
@@ -3190,6 +3401,8 @@ window.GPS_DEBUG = {
             users,
 
             savedGroups,
+
+            mapInitialized,
 
             myLocation: {
 
@@ -3205,13 +3418,16 @@ window.GPS_DEBUG = {
         };
     },
 
+
     reconnect() {
 
-        manuallyClosed =
-            false;
+        manuallyClosed = false;
+
+        pendingActionSent = false;
 
         connectWebSocket();
     },
+
 
     clearSession() {
 
@@ -3257,7 +3473,13 @@ document.addEventListener(
         loadSavedGroups();
 
 
-        await initMap();
+        /*
+         * Xarita setup sahifasi yashirin emas,
+         * lekin room xaritasi yashirin bo‘lishi mumkin.
+         *
+         * Shuning uchun session restore'dan oldin
+         * xaritani majburan yaratmaymiz.
+         */
 
 
         restoreSession();
