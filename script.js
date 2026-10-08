@@ -12,25 +12,41 @@ const SERVER_URL =
 
 
 /* =========================================================
+   STORAGE KEYS
+   ========================================================= */
+
+const SAVED_GROUPS_KEY = "gps-saved-groups";
+const USER_ID_KEY = "gps-user-id";
+const USER_NAME_KEY = "gps-user-name";
+const ROOM_CODE_KEY = "gps-room-code";
+const LAST_ROOM_KEY = "gps-last-room-code";
+const THEME_KEY = "gps-theme";
+
+
+/* =========================================================
    STATE
    ========================================================= */
 
 let ws = null;
 
 let currentUserId =
-    localStorage.getItem("gps-user-id") || null;
+    localStorage.getItem(USER_ID_KEY) || null;
 
 let currentUserName =
-    localStorage.getItem("gps-user-name") || "";
+    localStorage.getItem(USER_NAME_KEY) || "";
 
 let currentRoomCode =
-    localStorage.getItem("gps-room-code") || "";
+    normalizeRoomCode(
+        localStorage.getItem(ROOM_CODE_KEY) ||
+        localStorage.getItem(LAST_ROOM_KEY) ||
+        ""
+    );
 
 let pendingAction = null;
 
 /*
- * Bir WebSocket ulanishida create/join
- * faqat bir marta yuboriladi.
+ * Bitta WebSocket ulanishida
+ * create/join faqat bir marta yuboriladi.
  */
 let pendingActionSent = false;
 
@@ -58,6 +74,11 @@ let savedGroups = [];
 
 let eventsInitialized = false;
 
+let firstLocationCentered = false;
+
+let switchPendingAction = null;
+let switchFallbackTimer = null;
+
 
 /* =========================================================
    ELEMENT
@@ -82,6 +103,18 @@ function normalizeRoomCode(value) {
 
 
 /* =========================================================
+   USER ID VALIDATION
+   ========================================================= */
+
+function isValidUserId(value) {
+
+    return /^[a-f0-9]{16}$/i.test(
+        String(value || "")
+    );
+}
+
+
+/* =========================================================
    HTML ESCAPE
    ========================================================= */
 
@@ -99,10 +132,6 @@ function escapeHtml(value) {
 /* =========================================================
    SAVED GROUPS
    ========================================================= */
-
-const SAVED_GROUPS_KEY =
-    "gps-saved-groups";
-
 
 function loadSavedGroups() {
 
@@ -184,9 +213,14 @@ function addSavedGroup(
         );
 
     savedGroups.unshift({
+
         code: roomCode,
-        name: name || "Guruh",
-        savedAt: Date.now()
+
+        name:
+            name || "Guruh",
+
+        savedAt:
+            Date.now()
     });
 
     if (
@@ -371,6 +405,10 @@ function renderSavedGroups() {
 }
 
 
+/* =========================================================
+   JOIN SAVED GROUP
+   ========================================================= */
+
 function joinSavedGroup(
     code,
     name
@@ -425,12 +463,17 @@ function joinSavedGroup(
 
 
     localStorage.setItem(
-        "gps-user-name",
+        USER_NAME_KEY,
         finalName
     );
 
     localStorage.setItem(
-        "gps-room-code",
+        ROOM_CODE_KEY,
+        normalized
+    );
+
+    localStorage.setItem(
+        LAST_ROOM_KEY,
         normalized
     );
 
@@ -454,16 +497,17 @@ function joinSavedGroup(
 
 
     pendingAction = {
+
         type: "join",
-        roomCode: normalized,
-        name: finalName
+
+        roomCode:
+            normalized,
+
+        name:
+            finalName
     };
 
 
-    /*
-     * Yangi action bo‘lgani uchun
-     * uni yana yuborishga ruxsat beramiz.
-     */
     pendingActionSent = false;
 
 
@@ -501,11 +545,6 @@ function setConnectionStatus(
         }
     }
 
-
-    /*
-     * HTML yuqorisidagi connectionPill
-     * ham yangilanadi.
-     */
 
     const pill =
         $("connectionPill");
@@ -588,7 +627,7 @@ function setLocationStatus(
 
 
 /* =========================================================
-   ERROR
+   ERRORS
    ========================================================= */
 
 function showSetupError(
@@ -611,7 +650,9 @@ function showSetupError(
     }
 
 
-    alert(message);
+    console.error(
+        message
+    );
 }
 
 
@@ -635,7 +676,9 @@ function showRoomError(
     }
 
 
-    alert(message);
+    console.error(
+        message
+    );
 }
 
 
@@ -739,6 +782,22 @@ function showRoom() {
 
 
     clearSetupError();
+
+
+    /*
+     * Room endi ko‘rinadigan bo‘lgandan keyin
+     * mapni ishga tushiramiz.
+     */
+
+    requestAnimationFrame(() => {
+
+        setTimeout(() => {
+
+            initMap();
+
+        }, 80);
+
+    });
 }
 
 
@@ -773,6 +832,20 @@ function updateRoomCodeUI(
         input.value =
             normalized;
     }
+
+
+    const switchInput =
+        $("switchRoomInput");
+
+
+    if (
+        switchInput &&
+        normalized
+    ) {
+
+        switchInput.value =
+            "";
+    }
 }
 
 
@@ -805,16 +878,14 @@ function connectWebSocket() {
 
 
     /*
-     * WebSocket allaqachon ochiq bo‘lsa,
-     * yangi create/join actionni yuboramiz.
+     * Socket ochiq bo‘lsa,
+     * mavjud actionni yuboramiz.
      */
 
     if (
         ws &&
         ws.readyState === WebSocket.OPEN
     ) {
-
-        pendingActionSent = false;
 
         sendPendingAction();
 
@@ -823,8 +894,8 @@ function connectWebSocket() {
 
 
     /*
-     * Hozir ulanayotgan bo‘lsa,
-     * yana yangi socket ochmaymiz.
+     * Socket ulanayotgan bo‘lsa,
+     * ikkinchi socket ochilmaydi.
      */
 
     if (
@@ -882,11 +953,10 @@ function connectWebSocket() {
                 "online"
             );
 
-
             /*
-             * BU YERDA ACTION YUBORILMAYDI.
+             * Action bu yerda yuborilmaydi.
              *
-             * Serverdan "connected" kelgach
+             * Server "connected" yuborgandan keyin
              * sendPendingAction() ishlaydi.
              */
         }
@@ -960,6 +1030,7 @@ function scheduleReconnect() {
 
     const delay =
         Math.min(
+
             1000 *
             Math.pow(
                 2,
@@ -968,6 +1039,7 @@ function scheduleReconnect() {
                     5
                 )
             ),
+
             10000
         );
 
@@ -1005,17 +1077,13 @@ function sendPendingAction() {
     }
 
 
-    /*
-     * Bir socket ichida ikki marta yuborilmasin.
-     */
-
     if (pendingActionSent) {
         return;
     }
 
 
     /* =====================================================
-       CREATE ROOM
+       CREATE
        ===================================================== */
 
     if (
@@ -1040,12 +1108,14 @@ function sendPendingAction() {
         ws.send(
             JSON.stringify({
 
-                type: "create-room",
+                type:
+                    "create-room",
 
                 userId:
                     currentUserId || null,
 
                 name
+
             })
         );
 
@@ -1057,7 +1127,7 @@ function sendPendingAction() {
 
 
     /* =====================================================
-       JOIN ROOM
+       JOIN
        ===================================================== */
 
     if (
@@ -1097,7 +1167,8 @@ function sendPendingAction() {
         ws.send(
             JSON.stringify({
 
-                type: "join-room",
+                type:
+                    "join-room",
 
                 roomCode,
 
@@ -1105,6 +1176,7 @@ function sendPendingAction() {
                     currentUserId || null,
 
                 name
+
             })
         );
 
@@ -1156,16 +1228,14 @@ function handleServerMessage(event) {
     ) {
 
         /*
-         * Agar bizda saqlangan ID mavjud bo‘lsa,
-         * uni yangi socket ID bilan almashtirmaymiz.
-         *
-         * Shu orqali F5/reconnect bir xil user
-         * sifatida davom etadi.
+         * Eski saqlangan user ID bo‘lsa,
+         * uni serverning yangi vaqtinchalik ID'si
+         * bilan almashtirmaymiz.
          */
 
         if (
             !currentUserId &&
-            data.userId
+            isValidUserId(data.userId)
         ) {
 
             currentUserId =
@@ -1175,7 +1245,7 @@ function handleServerMessage(event) {
 
 
             localStorage.setItem(
-                "gps-user-id",
+                USER_ID_KEY,
                 currentUserId
             );
         }
@@ -1213,7 +1283,7 @@ function handleServerMessage(event) {
 
 
             localStorage.setItem(
-                "gps-user-id",
+                USER_ID_KEY,
                 currentUserId
             );
         }
@@ -1239,7 +1309,12 @@ function handleServerMessage(event) {
 
 
         localStorage.setItem(
-            "gps-room-code",
+            ROOM_CODE_KEY,
+            code
+        );
+
+        localStorage.setItem(
+            LAST_ROOM_KEY,
             code
         );
 
@@ -1261,6 +1336,9 @@ function handleServerMessage(event) {
         users = [];
 
 
+        clearMapMarkers();
+
+
         renderUsers();
 
 
@@ -1276,13 +1354,10 @@ function handleServerMessage(event) {
         );
 
 
-        /*
-         * Xona endi ko‘rinadigan bo‘ldi.
-         * Xarita aynan shundan keyin ishga tushadi.
-         */
+        firstLocationCentered = false;
+
 
         initMap();
-
 
         startLocationTracking();
 
@@ -1323,8 +1398,8 @@ function handleServerMessage(event) {
 
 
         /*
-         * Faqat bizda userId bo‘lmaganida
-         * server ID'sini qabul qilamiz.
+         * Server bergan ID faqat bizda
+         * umuman ID bo‘lmasa qabul qilinadi.
          */
 
         if (
@@ -1339,7 +1414,7 @@ function handleServerMessage(event) {
 
 
             localStorage.setItem(
-                "gps-user-id",
+                USER_ID_KEY,
                 currentUserId
             );
         }
@@ -1350,7 +1425,12 @@ function handleServerMessage(event) {
 
 
         localStorage.setItem(
-            "gps-room-code",
+            ROOM_CODE_KEY,
+            code
+        );
+
+        localStorage.setItem(
+            LAST_ROOM_KEY,
             code
         );
 
@@ -1381,13 +1461,10 @@ function handleServerMessage(event) {
         );
 
 
-        /*
-         * Avval xaritani ko‘rinadigan qilamiz,
-         * keyin Yandex Maps'ni ishga tushiramiz.
-         */
+        firstLocationCentered = false;
+
 
         initMap();
-
 
         startLocationTracking();
 
@@ -1436,28 +1513,62 @@ function handleServerMessage(event) {
         );
 
 
-        /*
-         * Action bajarilmadi.
-         * Foydalanuvchi qayta bosishi mumkin.
-         */
-
-        pendingAction = null;
-        pendingActionSent = false;
-
-
         const message =
             data.message ||
             "Xatolik yuz berdi.";
 
 
+        pendingAction = null;
+        pendingActionSent = false;
+
+
         /*
-         * Qaysi sahifada bo‘lsak,
-         * xatoni o‘sha joyda ko‘rsatamiz.
+         * Agar xona mavjud bo‘lmasa,
+         * eski saqlangan xona avtomatik qayta-qayta
+         * join bo‘lishining oldini olamiz.
          */
 
+        if (
+            message.includes(
+                "Bunday guruh topilmadi"
+            )
+        ) {
+
+            removeSavedGroup(
+                currentRoomCode
+            );
+
+
+            currentRoomCode = "";
+
+
+            localStorage.removeItem(
+                ROOM_CODE_KEY
+            );
+
+            localStorage.removeItem(
+                LAST_ROOM_KEY
+            );
+
+
+            showSetup();
+
+            showSetupError(
+                "Bu guruh topilmadi. Yangi guruh yarating yoki boshqa guruh kodini kiriting."
+            );
+
+
+            return;
+        }
+
+
+        const room =
+            $("roomCard");
+
+
         const roomVisible =
-            $("roomCard") &&
-            !$("roomCard").classList.contains(
+            room &&
+            !room.classList.contains(
                 "hidden"
             );
 
@@ -1488,12 +1599,32 @@ function handleServerMessage(event) {
         data.type === "left-room"
     ) {
 
-        currentRoomCode = "";
+        /*
+         * Muhim:
+         *
+         * ROOM CODE'NI O'CHIRMAYMIZ.
+         *
+         * Chunki foydalanuvchi keyinchalik saytga
+         * qayta kirganda shu guruhga avtomatik
+         * ulanadi.
+         */
+
+        currentRoomCode =
+            "";
 
 
         localStorage.removeItem(
-            "gps-room-code"
+            ROOM_CODE_KEY
         );
+
+
+        /*
+         * Lekin oxirgi guruhni saqlab qolamiz.
+         */
+
+        /*
+         * LAST_ROOM_KEY allaqachon saqlangan.
+         */
 
 
         pendingAction = null;
@@ -1519,6 +1650,52 @@ function handleServerMessage(event) {
             "Ulangan",
             "online"
         );
+
+
+        if (switchPendingAction) {
+
+            const nextAction =
+                switchPendingAction;
+
+            switchPendingAction = null;
+
+
+            if (switchFallbackTimer) {
+
+                clearTimeout(
+                    switchFallbackTimer
+                );
+
+                switchFallbackTimer = null;
+            }
+
+
+            currentRoomCode =
+                normalizeRoomCode(
+                    nextAction.roomCode
+                );
+
+
+            localStorage.setItem(
+                ROOM_CODE_KEY,
+                currentRoomCode
+            );
+
+            localStorage.setItem(
+                LAST_ROOM_KEY,
+                currentRoomCode
+            );
+
+
+            pendingAction =
+                nextAction;
+
+
+            pendingActionSent = false;
+
+
+            connectWebSocket();
+        }
 
 
         return;
@@ -1565,22 +1742,18 @@ function createRoom() {
 
 
     localStorage.setItem(
-        "gps-user-name",
+        USER_NAME_KEY,
         name
     );
 
-
-    /*
-     * Eski roomni create paytida
-     * yangi room bilan aralashtirmaymiz.
-     */
 
     currentRoomCode = "";
 
 
     pendingAction = {
 
-        type: "create",
+        type:
+            "create",
 
         name
     };
@@ -1661,13 +1834,19 @@ function joinRoom() {
 
 
     localStorage.setItem(
-        "gps-user-name",
+        USER_NAME_KEY,
         name
     );
 
 
     localStorage.setItem(
-        "gps-room-code",
+        ROOM_CODE_KEY,
+        roomCode
+    );
+
+
+    localStorage.setItem(
+        LAST_ROOM_KEY,
         roomCode
     );
 
@@ -1680,7 +1859,8 @@ function joinRoom() {
 
     pendingAction = {
 
-        type: "join",
+        type:
+            "join",
 
         roomCode,
 
@@ -1719,9 +1899,45 @@ function restoreSession() {
 
 
     /*
-     * F5:
-     * saqlangan xona mavjud bo‘lsa,
-     * qayta ulanamiz.
+     * Avval asosiy room code.
+     * Bo‘lmasa oxirgi guruhdan foydalanamiz.
+     */
+
+    const storedRoom =
+        normalizeRoomCode(
+            localStorage.getItem(
+                ROOM_CODE_KEY
+            ) ||
+            localStorage.getItem(
+                LAST_ROOM_KEY
+            ) ||
+            ""
+        );
+
+
+    /*
+     * Eski versiyadagi room code bo‘lsa,
+     * yana asosiy storage'ga qaytaramiz.
+     */
+
+    if (
+        /^[A-Z0-9]{6}$/.test(storedRoom)
+    ) {
+
+        currentRoomCode =
+            storedRoom;
+
+
+        localStorage.setItem(
+            LAST_ROOM_KEY,
+            storedRoom
+        );
+    }
+
+
+    /*
+     * F5 yoki bir necha soatdan keyin
+     * avtomatik qayta kirish.
      */
 
     if (
@@ -1729,36 +1945,32 @@ function restoreSession() {
         currentUserName
     ) {
 
-        const normalized =
-            normalizeRoomCode(
-                currentRoomCode
-            );
+        pendingAction = {
+
+            type:
+                "join",
+
+            roomCode:
+                currentRoomCode,
+
+            name:
+                currentUserName
+        };
 
 
-        if (
-            /^[A-Z0-9]{6}$/.test(
-                normalized
-            )
-        ) {
-
-            pendingAction = {
-
-                type: "join",
-
-                roomCode: normalized,
-
-                name:
-                    currentUserName
-            };
+        pendingActionSent = false;
 
 
-            pendingActionSent = false;
+        setConnectionStatus(
+            "Guruhga ulanmoqda...",
+            "connecting"
+        );
 
 
-            connectWebSocket();
+        connectWebSocket();
 
-            return;
-        }
+
+        return;
     }
 
 
@@ -1884,11 +2096,15 @@ function startLocationTracking() {
 
 
             {
-                enableHighAccuracy: true,
 
-                maximumAge: 5000,
+                enableHighAccuracy:
+                    true,
 
-                timeout: 15000
+                maximumAge:
+                    5000,
+
+                timeout:
+                    15000
             }
         );
 }
@@ -1951,11 +2167,14 @@ function sendLocation() {
     ws.send(
         JSON.stringify({
 
-            type: "location",
+            type:
+                "location",
 
-            lat: myLatitude,
+            lat:
+                myLatitude,
 
-            lng: myLongitude,
+            lng:
+                myLongitude,
 
             accuracy:
                 Number.isFinite(myAccuracy)
@@ -2009,7 +2228,7 @@ function sendName() {
 
 
     localStorage.setItem(
-        "gps-user-name",
+        USER_NAME_KEY,
         name
     );
 
@@ -2017,7 +2236,8 @@ function sendName() {
     ws.send(
         JSON.stringify({
 
-            type: "name",
+            type:
+                "name",
 
             name
         })
@@ -2151,8 +2371,26 @@ function renderUsers() {
         }
 
 
+        /*
+         * Offline user uchun
+         * oxirgi joylashuv mavjudligini ko‘rsatamiz.
+         */
+
+        const locationText =
+            !isMe &&
+            !user.online &&
+            Number.isFinite(Number(user.lat)) &&
+            Number.isFinite(Number(user.lng))
+                ? "Oxirgi joylashuv saqlangan"
+                : (
+                    distanceText ||
+                    statusText
+                );
+
+
         item.innerHTML = `
             <div class="member-avatar">
+
                 ${escapeHtml(
                     (
                         user.name ||
@@ -2161,6 +2399,7 @@ function renderUsers() {
                         .charAt(0)
                         .toUpperCase()
                 )}
+
             </div>
 
             <div class="member-info">
@@ -2181,10 +2420,9 @@ function renderUsers() {
                 </strong>
 
                 <span>
-                    ${
-                        distanceText ||
-                        statusText
-                    }
+                    ${escapeHtml(
+                        locationText
+                    )}
                 </span>
 
             </div>
@@ -2213,7 +2451,8 @@ function calculateDistance(
     lon2
 ) {
 
-    const R = 6371000;
+    const R =
+        6371000;
 
 
     const toRad =
@@ -2288,6 +2527,15 @@ async function initMap() {
     if (
         mapInitialized
     ) {
+
+        /*
+         * Map allaqachon mavjud.
+         * Markerlarni yangilaymiz.
+         */
+
+        updateMyMarker();
+        updateMapUsers();
+
         return;
     }
 
@@ -2301,14 +2549,40 @@ async function initMap() {
     }
 
 
+    /*
+     * Map hidden holatda bo‘lsa,
+     * hozir yaratmaymiz.
+     */
+
+    const room =
+        $("roomCard");
+
+
+    if (
+        room &&
+        room.classList.contains("hidden")
+    ) {
+        return;
+    }
+
+
     if (
         typeof ymaps3 ===
         "undefined"
     ) {
 
-        console.error(
-            "Yandex Maps yuklanmagan."
+        console.warn(
+            "Yandex Maps hali yuklanmagan. Qayta uriniladi."
         );
+
+
+        setTimeout(
+            () => {
+                initMap();
+            },
+            700
+        );
+
 
         return;
     }
@@ -2320,9 +2594,13 @@ async function initMap() {
 
 
         const {
+
             YMap,
+
             YMapDefaultSchemeLayer,
+
             YMapDefaultFeaturesLayer
+
         } = ymaps3;
 
 
@@ -2343,13 +2621,21 @@ async function initMap() {
 
         map =
             new YMap(
+
                 mapElement,
+
                 {
+
                     location: {
 
                         center,
 
-                        zoom: 12
+                        zoom:
+                            Number.isFinite(
+                                myLatitude
+                            )
+                                ? 15
+                                : 12
                     }
                 }
             );
@@ -2367,10 +2653,6 @@ async function initMap() {
 
         mapInitialized = true;
 
-
-        /*
-         * Map DOM endi ko‘rinadigan holatda.
-         */
 
         setTimeout(
             () => {
@@ -2398,30 +2680,60 @@ async function initMap() {
    PREMIUM MARKER ELEMENT
    ========================================================= */
 
-function createMarkerElement(user, isMe = false) {
+function createMarkerElement(
+    user,
+    isMe = false
+) {
 
-    const element = document.createElement("div");
+    const element =
+        document.createElement("div");
+
+
+    const online =
+        user.online !== false;
+
 
     element.className =
         isMe
             ? "gps-premium-marker gps-premium-marker-me"
             : "gps-premium-marker";
 
+
     const name =
         escapeHtml(
             user.name ||
-            (isMe ? "Siz" : "Noma'lum")
+            (
+                isMe
+                    ? "Siz"
+                    : "Noma'lum"
+            )
         );
+
 
     const initial =
         escapeHtml(
             (
                 user.name ||
-                (isMe ? "S" : "N")
+                (
+                    isMe
+                        ? "S"
+                        : "N"
+                )
             )
                 .charAt(0)
                 .toUpperCase()
         );
+
+
+    const statusText =
+        isMe
+            ? "Siz"
+            : (
+                online
+                    ? "Online"
+                    : "Offline"
+            );
+
 
     element.innerHTML = `
         <div class="gps-marker-wrapper">
@@ -2429,15 +2741,30 @@ function createMarkerElement(user, isMe = false) {
             <div class="gps-marker-card">
 
                 <div class="gps-marker-avatar">
+
                     <span>
                         ${initial}
                     </span>
 
-                    <i class="gps-marker-online"></i>
+                    <i
+                        class="
+                            gps-marker-online
+                            ${online ? "" : "offline"}
+                        "
+                    ></i>
+
                 </div>
 
-                <div class="gps-marker-name">
-                    ${name}
+                <div class="gps-marker-content">
+
+                    <div class="gps-marker-name">
+                        ${name}
+                    </div>
+
+                    <div class="gps-marker-status">
+                        ${statusText}
+                    </div>
+
                 </div>
 
             </div>
@@ -2451,8 +2778,109 @@ function createMarkerElement(user, isMe = false) {
         </div>
     `;
 
+
     return element;
 }
+
+
+/* =========================================================
+   UPDATE MARKER CONTENT
+   ========================================================= */
+
+function updateMarkerElement(
+    element,
+    user,
+    isMe = false
+) {
+
+    if (!element) {
+        return;
+    }
+
+
+    const avatar =
+        element.querySelector(
+            ".gps-marker-avatar span"
+        );
+
+
+    const name =
+        element.querySelector(
+            ".gps-marker-name"
+        );
+
+
+    const status =
+        element.querySelector(
+            ".gps-marker-status"
+        );
+
+
+    const onlineDot =
+        element.querySelector(
+            ".gps-marker-online"
+        );
+
+
+    const initial =
+        (
+            user.name ||
+            (
+                isMe
+                    ? "S"
+                    : "N"
+            )
+        )
+            .charAt(0)
+            .toUpperCase();
+
+
+    const online =
+        isMe ||
+        user.online !== false;
+
+
+    if (avatar) {
+
+        avatar.textContent =
+            initial;
+    }
+
+
+    if (name) {
+
+        name.textContent =
+            user.name ||
+            (
+                isMe
+                    ? "Siz"
+                    : "Noma'lum"
+            );
+    }
+
+
+    if (status) {
+
+        status.textContent =
+            isMe
+                ? "Siz"
+                : (
+                    online
+                        ? "Online"
+                        : "Offline"
+                );
+    }
+
+
+    if (onlineDot) {
+
+        onlineDot.classList.toggle(
+            "offline",
+            !online
+        );
+    }
+}
+
 
 /* =========================================================
    MY MARKER
@@ -2525,24 +2953,74 @@ function updateMyMarker() {
 
             myMarker =
                 new ymaps3.YMapMarker(
+
                     {
                         coordinates:
                             position
                     },
+
                     markerElement
                 );
+
+
+            myMarker.__element =
+                markerElement;
 
 
             map.addChild(
                 myMarker
             );
 
+
         } else {
 
             myMarker.update({
+
                 coordinates:
                     position
+
             });
+
+
+            updateMarkerElement(
+
+                myMarker.__element,
+
+                user,
+
+                true
+            );
+        }
+
+
+        /*
+         * Birinchi aniq GPS kelganda
+         * xaritani o‘zimizga markazlaymiz.
+         */
+
+        if (
+            !firstLocationCentered
+        ) {
+
+            firstLocationCentered = true;
+
+
+            try {
+
+                map.setLocation({
+
+                    center:
+                        position,
+
+                    zoom:
+                        15,
+
+                    duration:
+                        600
+
+                });
+
+            } catch (error) {}
         }
 
     } catch (error) {
@@ -2595,7 +3073,11 @@ function updateMapUsers() {
 
 
         /*
-         * Faqat koordinatasi bor user.
+         * Faqat koordinatasi mavjud
+         * foydalanuvchilar xaritada ko‘rsatiladi.
+         *
+         * ONLINE ham,
+         * OFFLINE ham.
          */
 
         if (
@@ -2618,6 +3100,7 @@ function updateMapUsers() {
             Number(user.lng),
 
             Number(user.lat)
+
         ];
 
 
@@ -2627,14 +3110,31 @@ function updateMapUsers() {
                 userMarkers.has(id)
             ) {
 
-                const marker =
+                const markerData =
                     userMarkers.get(id);
 
 
+                const marker =
+                    markerData.marker;
+
+
                 marker.update({
+
                     coordinates:
                         position
+
                 });
+
+
+                updateMarkerElement(
+
+                    markerData.element,
+
+                    user,
+
+                    false
+                );
+
 
             } else {
 
@@ -2647,11 +3147,16 @@ function updateMapUsers() {
 
                 const marker =
                     new ymaps3.YMapMarker(
+
                         {
+
                             coordinates:
                                 position
+
                         },
+
                         element
+
                     );
 
 
@@ -2661,8 +3166,17 @@ function updateMapUsers() {
 
 
                 userMarkers.set(
+
                     id,
-                    marker
+
+                    {
+
+                        marker,
+
+                        element
+
+                    }
+
                 );
             }
 
@@ -2677,13 +3191,18 @@ function updateMapUsers() {
 
 
     /*
-     * Yo‘qolgan markerlarni o‘chiramiz.
+     * Guruhdan butunlay yo‘qolgan user
+     * markerini olib tashlaymiz.
+     *
+     * Offline user guruh ro‘yxatida bor bo‘lsa,
+     * uning eski koordinatasi marker sifatida
+     * saqlanadi.
      */
 
     for (
         const [
             id,
-            marker
+            markerData
         ]
         of userMarkers.entries()
     ) {
@@ -2695,7 +3214,7 @@ function updateMapUsers() {
             try {
 
                 map.removeChild(
-                    marker
+                    markerData.marker
                 );
 
             } catch (error) {}
@@ -2734,14 +3253,14 @@ function clearMapMarkers() {
     if (map) {
 
         for (
-            const marker
+            const markerData
             of userMarkers.values()
         ) {
 
             try {
 
                 map.removeChild(
-                    marker
+                    markerData.marker
                 );
 
             } catch (error) {}
@@ -2763,6 +3282,13 @@ function centerMapOnMe() {
 
         initMap();
 
+        setTimeout(
+            () => {
+                centerMapOnMe();
+            },
+            300
+        );
+
         return;
     }
 
@@ -2773,6 +3299,11 @@ function centerMapOnMe() {
     ) {
 
         startLocationTracking();
+
+        setLocationStatus(
+            "Joylashuv olinmoqda...",
+            "connecting"
+        );
 
         return;
     }
@@ -2787,11 +3318,15 @@ function centerMapOnMe() {
                 myLongitude,
 
                 myLatitude
+
             ],
 
-            zoom: 16,
+            zoom:
+                16,
 
-            duration: 500
+            duration:
+                500
+
         });
 
     } catch (error) {
@@ -2823,16 +3358,52 @@ async function copyRoomCode() {
 
     try {
 
-        await navigator.clipboard.writeText(
-            code
-        );
+        if (
+            navigator.clipboard &&
+            navigator.clipboard.writeText
+        ) {
+
+            await navigator.clipboard.writeText(
+                code
+            );
+
+        } else {
+
+            throw new Error(
+                "Clipboard API mavjud emas"
+            );
+        }
 
 
         const button =
             $("copyRoomBtn");
 
 
-        if (button) {
+        const text =
+            $("copyRoomText");
+
+
+        if (text) {
+
+            const oldText =
+                text.textContent;
+
+
+            text.textContent =
+                "Nusxalandi";
+
+
+            setTimeout(
+                () => {
+
+                    text.textContent =
+                        oldText;
+
+                },
+                1500
+            );
+
+        } else if (button) {
 
             const oldText =
                 button.innerHTML;
@@ -2840,8 +3411,8 @@ async function copyRoomCode() {
 
             button.innerHTML =
                 `
-                <span>✓</span>
-                <span>Nusxalandi</span>
+                    <span>✓</span>
+                    <span>Nusxalandi</span>
                 `;
 
 
@@ -2866,6 +3437,13 @@ async function copyRoomCode() {
 
         textarea.value =
             code;
+
+
+        textarea.style.position =
+            "fixed";
+
+        textarea.style.opacity =
+            "0";
 
 
         document.body.appendChild(
@@ -2896,17 +3474,59 @@ async function copyRoomCode() {
 
 function leaveGroup() {
 
+    /*
+     * Serverga leave yuboramiz.
+     */
+
     if (
         ws &&
         ws.readyState === WebSocket.OPEN &&
         currentRoomCode
     ) {
 
-        ws.send(
-            JSON.stringify({
-                type:
-                    "leave-room"
-            })
+        try {
+
+            ws.send(
+                JSON.stringify({
+
+                    type:
+                        "leave-room"
+
+                })
+            );
+
+        } catch (error) {
+
+            console.error(
+                "Leave error:",
+                error
+            );
+        }
+    }
+
+
+    /*
+     * MUHIM:
+     *
+     * ROOM CODE butunlay o‘chirilmaydi.
+     *
+     * Oxirgi guruh LAST_ROOM_KEY ichida qoladi.
+     *
+     * Keyingi safar sayt ochilganda:
+     *
+     *   F5
+     *   browser yopib ochish
+     *   bir necha soat o‘tishi
+     *
+     * orqali yana shu guruhga avtomatik
+     * ulanadi.
+     */
+
+    if (currentRoomCode) {
+
+        localStorage.setItem(
+            LAST_ROOM_KEY,
+            currentRoomCode
         );
     }
 
@@ -2915,7 +3535,7 @@ function leaveGroup() {
 
 
     localStorage.removeItem(
-        "gps-room-code"
+        ROOM_CODE_KEY
     );
 
 
@@ -2996,6 +3616,36 @@ function switchRoom() {
 
 
     /*
+     * Bir xil guruhga switch kerak emas.
+     */
+
+    if (
+        normalizeRoomCode(
+            currentRoomCode
+        ) === code
+    ) {
+
+        showRoomError(
+            "Siz hozir shu guruhdasiz."
+        );
+
+        return;
+    }
+
+
+    const nextAction = {
+
+        type:
+            "join",
+
+        roomCode:
+            code,
+
+        name
+    };
+
+
+    /*
      * Avval eski guruhdan chiqamiz.
      */
 
@@ -3005,45 +3655,109 @@ function switchRoom() {
         currentRoomCode
     ) {
 
+        switchPendingAction =
+            nextAction;
+
+
         ws.send(
             JSON.stringify({
+
                 type:
                     "leave-room"
+
             })
         );
+
+
+        /*
+         * Agar server left-room javobini kechiktirsa,
+         * 1.5 soniyadan keyin baribir join qilamiz.
+         */
+
+        if (switchFallbackTimer) {
+
+            clearTimeout(
+                switchFallbackTimer
+            );
+        }
+
+
+        switchFallbackTimer =
+            setTimeout(
+                () => {
+
+                    if (
+                        switchPendingAction
+                    ) {
+
+                        const action =
+                            switchPendingAction;
+
+                        switchPendingAction =
+                            null;
+
+
+                        currentRoomCode =
+                            code;
+
+
+                        localStorage.setItem(
+                            ROOM_CODE_KEY,
+                            code
+                        );
+
+                        localStorage.setItem(
+                            LAST_ROOM_KEY,
+                            code
+                        );
+
+
+                        pendingAction =
+                            action;
+
+
+                        pendingActionSent =
+                            false;
+
+
+                        connectWebSocket();
+                    }
+
+                },
+                1500
+            );
+
+
+        return;
     }
 
 
-    users = [];
-
-
-    clearMapMarkers();
-
-
-    stopLocationTracking();
-
+    /*
+     * Socket yo‘q bo‘lsa,
+     * to‘g‘ridan-to‘g‘ri join.
+     */
 
     currentRoomCode =
         code;
 
 
     localStorage.setItem(
-        "gps-room-code",
+        ROOM_CODE_KEY,
+        code
+    );
+
+    localStorage.setItem(
+        LAST_ROOM_KEY,
         code
     );
 
 
-    pendingAction = {
-
-        type: "join",
-
-        roomCode: code,
-
-        name
-    };
+    pendingAction =
+        nextAction;
 
 
-    pendingActionSent = false;
+    pendingActionSent =
+        false;
 
 
     connectWebSocket();
@@ -3083,7 +3797,7 @@ function applyTheme(
 
 
     localStorage.setItem(
-        "gps-theme",
+        THEME_KEY,
         theme
     );
 
@@ -3099,10 +3813,15 @@ function applyTheme(
     if (button) {
 
         button.setAttribute(
+
             "aria-label",
+
             theme === "dark"
+
                 ? "Yorug‘ rejim"
+
                 : "Tungi rejim"
+
         );
     }
 
@@ -3128,14 +3847,18 @@ function toggleTheme() {
 
     const current =
         localStorage.getItem(
-            "gps-theme"
+            THEME_KEY
         ) || "light";
 
 
     applyTheme(
+
         current === "dark"
+
             ? "light"
+
             : "dark"
+
     );
 }
 
@@ -3154,7 +3877,9 @@ function setupEvents() {
     eventsInitialized = true;
 
 
-    /* CREATE */
+    /* =====================================================
+       CREATE
+       ===================================================== */
 
     const createButton =
         $("createRoomBtn");
@@ -3169,7 +3894,9 @@ function setupEvents() {
     }
 
 
-    /* JOIN */
+    /* =====================================================
+       JOIN
+       ===================================================== */
 
     const joinButton =
         $("joinRoomBtn");
@@ -3184,7 +3911,9 @@ function setupEvents() {
     }
 
 
-    /* COPY */
+    /* =====================================================
+       COPY
+       ===================================================== */
 
     const copyButton =
         $("copyRoomBtn");
@@ -3199,7 +3928,9 @@ function setupEvents() {
     }
 
 
-    /* MY LOCATION */
+    /* =====================================================
+       MY LOCATION
+       ===================================================== */
 
     const myLocationButton =
         $("myLocationBtn");
@@ -3214,12 +3945,15 @@ function setupEvents() {
                 startLocationTracking();
 
                 centerMapOnMe();
+
             }
         );
     }
 
 
-    /* CENTER */
+    /* =====================================================
+       CENTER
+       ===================================================== */
 
     const centerButton =
         $("centerMapBtn");
@@ -3234,7 +3968,9 @@ function setupEvents() {
     }
 
 
-    /* SWITCH */
+    /* =====================================================
+       SWITCH
+       ===================================================== */
 
     const switchButton =
         $("switchRoomBtn");
@@ -3249,7 +3985,9 @@ function setupEvents() {
     }
 
 
-    /* LEAVE */
+    /* =====================================================
+       LEAVE
+       ===================================================== */
 
     const leaveButton =
         $("leaveGroupBtn");
@@ -3264,7 +4002,9 @@ function setupEvents() {
     }
 
 
-    /* THEME */
+    /* =====================================================
+       THEME
+       ===================================================== */
 
     const themeButton =
         $("themeBtn");
@@ -3279,7 +4019,9 @@ function setupEvents() {
     }
 
 
-    /* NAME */
+    /* =====================================================
+       NAME
+       ===================================================== */
 
     const nameInput =
         $("userName");
@@ -3301,7 +4043,7 @@ function setupEvents() {
 
 
                 localStorage.setItem(
-                    "gps-user-name",
+                    USER_NAME_KEY,
                     currentUserName
                 );
 
@@ -3317,7 +4059,9 @@ function setupEvents() {
     }
 
 
-    /* ROOM CODE */
+    /* =====================================================
+       ROOM CODE
+       ===================================================== */
 
     const roomInput =
         $("roomCode");
@@ -3333,6 +4077,7 @@ function setupEvents() {
                     normalizeRoomCode(
                         roomInput.value
                     );
+
 
                 clearSetupError();
             }
@@ -3356,7 +4101,9 @@ function setupEvents() {
     }
 
 
-    /* SWITCH INPUT */
+    /* =====================================================
+       SWITCH INPUT
+       ===================================================== */
 
     const switchInput =
         $("switchRoomInput");
@@ -3372,6 +4119,7 @@ function setupEvents() {
                     normalizeRoomCode(
                         switchInput.value
                     );
+
 
                 clearRoomError();
             }
@@ -3397,6 +4145,548 @@ function setupEvents() {
 
 
 /* =========================================================
+   PREMIUM MARKER CSS
+   ========================================================= */
+
+function injectPremiumMarkerStyle() {
+
+    if (
+        $("premium-gps-marker-style")
+    ) {
+        return;
+    }
+
+
+    const style =
+        document.createElement("style");
+
+
+    style.id =
+        "premium-gps-marker-style";
+
+
+    style.textContent = `
+
+        .gps-premium-marker {
+
+            position: relative;
+
+            width: 155px;
+            height: 90px;
+
+            display: flex;
+
+            justify-content: center;
+
+            align-items: flex-start;
+
+            pointer-events: auto;
+
+            transform:
+                translate(-50%, -100%);
+
+            font-family:
+                Inter,
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
+
+            z-index: 10;
+
+            transition:
+                transform .25s ease,
+                filter .25s ease;
+        }
+
+
+        .gps-premium-marker:hover {
+
+            transform:
+                translate(-50%, -100%)
+                scale(1.06);
+
+            z-index: 100;
+        }
+
+
+        .gps-marker-wrapper {
+
+            position: relative;
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+        }
+
+
+        .gps-marker-card {
+
+            position: relative;
+
+            min-width: 125px;
+            max-width: 155px;
+
+            height: 52px;
+
+            padding:
+                6px 10px 6px 7px;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 8px;
+
+            border-radius: 17px;
+
+            background:
+                rgba(255,255,255,.97);
+
+            border:
+                1px solid
+                rgba(255,255,255,.9);
+
+            box-shadow:
+
+                0 10px 35px
+                rgba(0,0,0,.18),
+
+                0 3px 10px
+                rgba(0,0,0,.10),
+
+                inset 0 1px 0
+                rgba(255,255,255,.95);
+
+            backdrop-filter:
+                blur(18px);
+
+            -webkit-backdrop-filter:
+                blur(18px);
+
+            white-space: nowrap;
+
+            overflow: hidden;
+        }
+
+
+        .gps-marker-avatar {
+
+            position: relative;
+
+            width: 37px;
+            height: 37px;
+
+            min-width: 37px;
+
+            border-radius: 50%;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            color: #fff;
+
+            font-size: 14px;
+
+            font-weight: 800;
+
+            background:
+                linear-gradient(
+                    145deg,
+                    #22c55e,
+                    #16a34a
+                );
+
+            box-shadow:
+
+                0 5px 15px
+                rgba(22,163,74,.35),
+
+                inset 0 1px 1px
+                rgba(255,255,255,.4);
+        }
+
+
+        .gps-marker-avatar span {
+
+            position: relative;
+
+            z-index: 2;
+        }
+
+
+        .gps-marker-online {
+
+            position: absolute;
+
+            right: -1px;
+            bottom: -1px;
+
+            width: 11px;
+            height: 11px;
+
+            border-radius: 50%;
+
+            background:
+                #22c55e;
+
+            border:
+                2px solid #fff;
+
+            box-shadow:
+                0 0 0 3px
+                rgba(34,197,94,.13),
+
+                0 0 10px
+                rgba(34,197,94,.65);
+
+            animation:
+                gps-online-pulse 2s infinite;
+        }
+
+
+        .gps-marker-online.offline {
+
+            background:
+                #9ca3af;
+
+            box-shadow:
+                0 0 0 2px
+                rgba(156,163,175,.12);
+
+            animation: none;
+        }
+
+
+        @keyframes gps-online-pulse {
+
+            0%,
+            100% {
+
+                box-shadow:
+                    0 0 0 2px
+                    rgba(34,197,94,.10),
+
+                    0 0 7px
+                    rgba(34,197,94,.45);
+            }
+
+            50% {
+
+                box-shadow:
+                    0 0 0 5px
+                    rgba(34,197,94,.08),
+
+                    0 0 14px
+                    rgba(34,197,94,.75);
+            }
+        }
+
+
+        .gps-marker-content {
+
+            min-width: 0;
+
+            display: flex;
+
+            flex-direction: column;
+
+            justify-content: center;
+        }
+
+
+        .gps-marker-name {
+
+            max-width: 94px;
+
+            overflow: hidden;
+
+            text-overflow: ellipsis;
+
+            white-space: nowrap;
+
+            color:
+                #17201c;
+
+            font-size:
+                13px;
+
+            font-weight:
+                750;
+
+            line-height:
+                1.2;
+        }
+
+
+        .gps-marker-status {
+
+            margin-top: 2px;
+
+            color:
+                #647067;
+
+            font-size:
+                10px;
+
+            font-weight:
+                600;
+
+            line-height:
+                1;
+        }
+
+
+        .gps-marker-pin {
+
+            position: relative;
+
+            width: 18px;
+            height: 18px;
+
+            margin-top: -4px;
+
+            transform:
+                rotate(45deg);
+
+            border-radius:
+                4px 4px 5px 4px;
+
+            background:
+                rgba(255,255,255,.97);
+
+            box-shadow:
+                4px 4px 11px
+                rgba(0,0,0,.12);
+        }
+
+
+        .gps-marker-pin-inner {
+
+            position: absolute;
+
+            left: 50%;
+            top: 50%;
+
+            width: 8px;
+            height: 8px;
+
+            transform:
+                translate(-50%, -50%);
+
+            border-radius: 50%;
+
+            background:
+                #19d66b;
+
+            box-shadow:
+                0 0 12px
+                rgba(25,214,107,.7);
+        }
+
+
+        .gps-premium-marker-me {
+
+            z-index: 30;
+        }
+
+
+        .gps-premium-marker-me
+        .gps-marker-card {
+
+            border:
+                1px solid
+                rgba(25,214,107,.38);
+
+            box-shadow:
+
+                0 12px 40px
+                rgba(25,214,107,.20),
+
+                0 4px 13px
+                rgba(0,0,0,.12),
+
+                inset 0 1px 0
+                rgba(255,255,255,.95);
+        }
+
+
+        .gps-premium-marker-me
+        .gps-marker-avatar {
+
+            background:
+                linear-gradient(
+                    145deg,
+                    #19d66b,
+                    #0fa958
+                );
+
+            box-shadow:
+
+                0 5px 17px
+                rgba(25,214,107,.42),
+
+                inset 0 1px 1px
+                rgba(255,255,255,.42);
+        }
+
+
+        .gps-premium-marker-me
+        .gps-marker-pin-inner {
+
+            background:
+                #19d66b;
+
+            box-shadow:
+                0 0 15px
+                rgba(25,214,107,.9);
+        }
+
+
+        .dark
+        .gps-marker-card,
+
+        body.dark
+        .gps-marker-card {
+
+            background:
+                rgba(25,31,28,.97);
+
+            border:
+                1px solid
+                rgba(255,255,255,.10);
+
+            box-shadow:
+
+                0 12px 40px
+                rgba(0,0,0,.45),
+
+                inset 0 1px 0
+                rgba(255,255,255,.06);
+        }
+
+
+        .dark
+        .gps-marker-name,
+
+        body.dark
+        .gps-marker-name {
+
+            color:
+                #f3f7f5;
+        }
+
+
+        .dark
+        .gps-marker-status,
+
+        body.dark
+        .gps-marker-status {
+
+            color:
+                #9ca9a1;
+        }
+
+
+        .dark
+        .gps-marker-pin,
+
+        body.dark
+        .gps-marker-pin {
+
+            background:
+                rgba(25,31,28,.97);
+
+            box-shadow:
+                4px 4px 13px
+                rgba(0,0,0,.4);
+        }
+
+
+        @media (max-width: 600px) {
+
+            .gps-premium-marker {
+
+                width: 135px;
+                height: 82px;
+            }
+
+
+            .gps-marker-card {
+
+                min-width: 110px;
+
+                height: 46px;
+
+                padding:
+                    5px 8px 5px 6px;
+
+                gap: 7px;
+
+                border-radius: 15px;
+            }
+
+
+            .gps-marker-avatar {
+
+                width: 33px;
+                height: 33px;
+
+                min-width: 33px;
+
+                font-size: 12px;
+            }
+
+
+            .gps-marker-online {
+
+                width: 10px;
+                height: 10px;
+            }
+
+
+            .gps-marker-name {
+
+                max-width: 78px;
+
+                font-size: 12px;
+            }
+
+
+            .gps-marker-status {
+
+                font-size: 9px;
+            }
+
+
+            .gps-marker-pin {
+
+                width: 16px;
+                height: 16px;
+            }
+
+
+            .gps-marker-pin-inner {
+
+                width: 7px;
+                height: 7px;
+            }
+        }
+
+    `;
+
+
+    document.head.appendChild(
+        style
+    );
+}
+
+
+/* =========================================================
    DEBUG
    ========================================================= */
 
@@ -3411,6 +4701,11 @@ window.GPS_DEBUG = {
             currentUserName,
 
             currentRoomCode,
+
+            lastRoomCode:
+                localStorage.getItem(
+                    LAST_ROOM_KEY
+                ),
 
             pendingAction,
 
@@ -3457,509 +4752,24 @@ window.GPS_DEBUG = {
     clearSession() {
 
         localStorage.removeItem(
-            "gps-user-id"
+            USER_ID_KEY
         );
 
         localStorage.removeItem(
-            "gps-user-name"
+            USER_NAME_KEY
         );
 
         localStorage.removeItem(
-            "gps-room-code"
+            ROOM_CODE_KEY
+        );
+
+        localStorage.removeItem(
+            LAST_ROOM_KEY
         );
 
         location.reload();
     }
 };
-
-/* =========================================================
-   PREMIUM GPS MARKER STYLE
-   ========================================================= */
-
-(function injectPremiumMarkerStyle() {
-
-    if (document.getElementById("premium-gps-marker-style")) {
-        return;
-    }
-
-    const style = document.createElement("style");
-
-    style.id = "premium-gps-marker-style";
-
-    style.textContent = `
-
-        /* ================================================
-           MAIN MARKER
-           ================================================ */
-
-        .gps-premium-marker {
-            position: relative;
-            width: 150px;
-            height: 86px;
-
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-
-            pointer-events: auto;
-
-            transform: translate(-50%, -100%);
-
-            font-family:
-                Inter,
-                -apple-system,
-                BlinkMacSystemFont,
-                "Segoe UI",
-                sans-serif;
-
-            z-index: 10;
-
-            transition:
-                transform .25s ease,
-                filter .25s ease;
-        }
-
-
-        .gps-premium-marker:hover {
-
-            transform:
-                translate(-50%, -100%)
-                scale(1.06);
-
-            z-index: 100;
-        }
-
-
-        /* ================================================
-           WRAPPER
-           ================================================ */
-
-        .gps-marker-wrapper {
-
-            position: relative;
-
-            display: flex;
-
-            flex-direction: column;
-
-            align-items: center;
-        }
-
-
-        /* ================================================
-           CARD
-           ================================================ */
-
-        .gps-marker-card {
-
-            position: relative;
-
-            min-width: 118px;
-            max-width: 150px;
-
-            height: 50px;
-
-            padding: 6px 10px 6px 7px;
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 8px;
-
-            border-radius: 16px;
-
-            background:
-                rgba(255,255,255,.96);
-
-            border:
-                1px solid
-                rgba(255,255,255,.85);
-
-            box-shadow:
-                0 8px 30px rgba(0,0,0,.18),
-                0 2px 8px rgba(0,0,0,.10),
-                inset 0 1px 0 rgba(255,255,255,.9);
-
-            backdrop-filter:
-                blur(16px);
-
-            -webkit-backdrop-filter:
-                blur(16px);
-
-            white-space: nowrap;
-
-            overflow: hidden;
-        }
-
-
-        /* ================================================
-           AVATAR
-           ================================================ */
-
-        .gps-marker-avatar {
-
-            position: relative;
-
-            width: 36px;
-            height: 36px;
-
-            min-width: 36px;
-
-            border-radius: 50%;
-
-            display: flex;
-
-            align-items: center;
-            justify-content: center;
-
-            color: white;
-
-            font-size: 14px;
-            font-weight: 800;
-
-            background:
-                linear-gradient(
-                    145deg,
-                    #22c55e,
-                    #16a34a
-                );
-
-            box-shadow:
-                0 4px 12px
-                rgba(22,163,74,.35),
-
-                inset 0 1px 1px
-                rgba(255,255,255,.35);
-        }
-
-
-        .gps-marker-avatar span {
-
-            position: relative;
-
-            z-index: 2;
-        }
-
-
-        /* ================================================
-           ONLINE DOT
-           ================================================ */
-
-        .gps-marker-online {
-
-            position: absolute;
-
-            right: -1px;
-            bottom: -1px;
-
-            width: 11px;
-            height: 11px;
-
-            border-radius: 50%;
-
-            background: #22c55e;
-
-            border:
-                2px solid white;
-
-            box-shadow:
-                0 0 0 3px
-                rgba(34,197,94,.15),
-
-                0 0 10px
-                rgba(34,197,94,.65);
-
-            animation:
-                gps-online-pulse 2s infinite;
-        }
-
-
-        @keyframes gps-online-pulse {
-
-            0%,
-            100% {
-
-                box-shadow:
-                    0 0 0 2px
-                    rgba(34,197,94,.10),
-
-                    0 0 7px
-                    rgba(34,197,94,.45);
-            }
-
-            50% {
-
-                box-shadow:
-                    0 0 0 5px
-                    rgba(34,197,94,.08),
-
-                    0 0 14px
-                    rgba(34,197,94,.75);
-            }
-        }
-
-
-        /* ================================================
-           NAME
-           ================================================ */
-
-        .gps-marker-name {
-
-            max-width: 90px;
-
-            overflow: hidden;
-
-            text-overflow: ellipsis;
-
-            white-space: nowrap;
-
-            color: #17201c;
-
-            font-size: 13px;
-
-            font-weight: 700;
-
-            line-height: 1.2;
-        }
-
-
-        /* ================================================
-           PIN
-           ================================================ */
-
-        .gps-marker-pin {
-
-            position: relative;
-
-            width: 18px;
-            height: 18px;
-
-            margin-top: -4px;
-
-            transform:
-                rotate(45deg);
-
-            border-radius:
-                4px 4px 5px 4px;
-
-            background:
-                rgba(255,255,255,.96);
-
-            box-shadow:
-                4px 4px 10px
-                rgba(0,0,0,.12);
-        }
-
-
-        .gps-marker-pin-inner {
-
-            position: absolute;
-
-            left: 50%;
-            top: 50%;
-
-            width: 8px;
-            height: 8px;
-
-            transform:
-                translate(-50%, -50%);
-
-            border-radius: 50%;
-
-            background:
-                #19d66b;
-
-            box-shadow:
-                0 0 10px
-                rgba(25,214,107,.65);
-        }
-
-
-        /* ================================================
-           MY LOCATION
-           ================================================ */
-
-        .gps-premium-marker-me {
-
-            z-index: 30;
-        }
-
-
-        .gps-premium-marker-me
-        .gps-marker-card {
-
-            border:
-                1px solid
-                rgba(25,214,107,.35);
-
-            box-shadow:
-                0 10px 35px
-                rgba(25,214,107,.22),
-
-                0 3px 12px
-                rgba(0,0,0,.12),
-
-                inset 0 1px 0
-                rgba(255,255,255,.9);
-        }
-
-
-        .gps-premium-marker-me
-        .gps-marker-avatar {
-
-            background:
-                linear-gradient(
-                    145deg,
-                    #19d66b,
-                    #0fa958
-                );
-
-            box-shadow:
-                0 4px 16px
-                rgba(25,214,107,.42),
-
-                inset 0 1px 1px
-                rgba(255,255,255,.4);
-        }
-
-
-        .gps-premium-marker-me
-        .gps-marker-pin-inner {
-
-            background:
-                #19d66b;
-
-            box-shadow:
-                0 0 14px
-                rgba(25,214,107,.9);
-        }
-
-
-        /* ================================================
-           DARK MODE
-           ================================================ */
-
-        .dark
-        .gps-marker-card,
-
-        body.dark
-        .gps-marker-card {
-
-            background:
-                rgba(25,31,28,.96);
-
-            border:
-                1px solid
-                rgba(255,255,255,.10);
-
-            box-shadow:
-                0 10px 35px
-                rgba(0,0,0,.40),
-
-                inset 0 1px 0
-                rgba(255,255,255,.06);
-        }
-
-
-        .dark
-        .gps-marker-name,
-
-        body.dark
-        .gps-marker-name {
-
-            color: #f3f7f5;
-        }
-
-
-        .dark
-        .gps-marker-pin,
-
-        body.dark
-        .gps-marker-pin {
-
-            background:
-                rgba(25,31,28,.96);
-
-            box-shadow:
-                4px 4px 12px
-                rgba(0,0,0,.35);
-        }
-
-
-        /* ================================================
-           MOBILE
-           ================================================ */
-
-        @media (max-width: 600px) {
-
-            .gps-premium-marker {
-
-                width: 130px;
-                height: 78px;
-            }
-
-
-            .gps-marker-card {
-
-                min-width: 105px;
-
-                height: 44px;
-
-                padding:
-                    5px 8px 5px 6px;
-
-                gap: 7px;
-
-                border-radius: 14px;
-            }
-
-
-            .gps-marker-avatar {
-
-                width: 32px;
-                height: 32px;
-
-                min-width: 32px;
-
-                font-size: 12px;
-            }
-
-
-            .gps-marker-online {
-
-                width: 10px;
-                height: 10px;
-            }
-
-
-            .gps-marker-name {
-
-                max-width: 78px;
-
-                font-size: 12px;
-            }
-
-
-            .gps-marker-pin {
-
-                width: 16px;
-                height: 16px;
-            }
-
-
-            .gps-marker-pin-inner {
-
-                width: 7px;
-                height: 7px;
-            }
-        }
-
-    `;
-
-    document.head.appendChild(style);
-
-})();
 
 
 /* =========================================================
@@ -3968,11 +4778,11 @@ window.GPS_DEBUG = {
 
 document.addEventListener(
     "DOMContentLoaded",
-    async () => {
+    () => {
 
         const savedTheme =
             localStorage.getItem(
-                "gps-theme"
+                THEME_KEY
             ) || "light";
 
 
@@ -3981,20 +4791,23 @@ document.addEventListener(
         );
 
 
-        setupEvents();
+        /*
+         * Premium marker CSS.
+         */
 
-
-        loadSavedGroups();
+        injectPremiumMarkerStyle();
 
 
         /*
-         * Xarita setup sahifasi yashirin emas,
-         * lekin room xaritasi yashirin bo‘lishi mumkin.
-         *
-         * Shuning uchun session restore'dan oldin
-         * xaritani majburan yaratmaymiz.
+         * Eventlar.
          */
 
+        setupEvents();
+
+
+        /*
+         * Session.
+         */
 
         restoreSession();
 
