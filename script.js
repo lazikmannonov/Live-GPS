@@ -273,30 +273,36 @@ function updateLocationStatus(status, text) {
     }
 }
 
-
 /* =========================================================
-   UI
+   ROOM CODE UI
    ========================================================= */
 
-function showSetup() {
-    showElement("setupCard", true);
-    showElement("roomCard", false);
-}
-
-function showRoom() {
-    showElement("setupCard", false);
-    showElement("roomCard", true);
-
-    updateRoomCodeUI();
-}
-
 function updateRoomCodeUI() {
-    setText(
-        "currentRoomCode",
-        state.roomCode || "—"
-    );
-}
 
+    const el =
+        $("currentRoomCode");
+
+    if (!el) {
+
+        console.warn(
+            "currentRoomCode elementi topilmadi."
+        );
+
+        return;
+    }
+
+    const code =
+        normalizeRoomCode(
+            state.roomCode
+        );
+
+    el.textContent =
+        code || "------";
+
+    el.style.display = "block";
+    el.style.visibility = "visible";
+    el.style.opacity = "1";
+}
 
 /* =========================================================
    YANDEX MAPS 3.0 LOADER
@@ -1122,12 +1128,17 @@ function handleServerMessage(raw) {
     }
 }
 
-
 /* =========================================================
    ROOM CREATED
    ========================================================= */
 
 function handleRoomCreated(data) {
+
+    console.log(
+        "ROOM CREATED:",
+        data
+    );
+
     const room =
         normalizeRoomCode(
             data.roomCode ||
@@ -1135,21 +1146,48 @@ function handleRoomCreated(data) {
             data.room
         );
 
+    console.log(
+        "ROOM CODE:",
+        room
+    );
+
     if (!room) {
+
+        setSetupError(
+            "Guruh kodi serverdan olinmadi."
+        );
+
         return;
     }
 
     state.roomCode = room;
 
     saveSession();
-    updateRoomCodeUI();
+
+    /*
+     * Avval room oynasini ko‘rsatamiz
+     */
     showRoom();
+
+    /*
+     * Keyin kodni ekranga chiqaramiz
+     */
+    updateRoomCodeUI();
+
+    /*
+     * DOM yangilangandan keyin yana bir marta
+     * kodni yozamiz.
+     */
+    requestAnimationFrame(() => {
+
+        updateRoomCodeUI();
+
+    });
 
     setRoomError("");
 
     startLocationTracking();
 }
-
 
 /* =========================================================
    JOINED ROOM
