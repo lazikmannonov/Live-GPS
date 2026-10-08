@@ -2395,39 +2395,64 @@ async function initMap() {
 
 
 /* =========================================================
-   MARKER ELEMENT
+   PREMIUM MARKER ELEMENT
    ========================================================= */
 
-function createMarkerElement(
-    user,
-    isMe = false
-) {
+function createMarkerElement(user, isMe = false) {
 
-    const element =
-        document.createElement("div");
-
+    const element = document.createElement("div");
 
     element.className =
         isMe
-            ? "gps-marker gps-marker-me"
-            : "gps-marker";
+            ? "gps-premium-marker gps-premium-marker-me"
+            : "gps-premium-marker";
 
+    const name =
+        escapeHtml(
+            user.name ||
+            (isMe ? "Siz" : "Noma'lum")
+        );
+
+    const initial =
+        escapeHtml(
+            (
+                user.name ||
+                (isMe ? "S" : "N")
+            )
+                .charAt(0)
+                .toUpperCase()
+        );
 
     element.innerHTML = `
-        <div class="gps-marker-dot"></div>
+        <div class="gps-marker-wrapper">
 
-        <div class="gps-marker-label">
-            ${escapeHtml(
-                user.name ||
-                "Noma'lum"
-            )}
+            <div class="gps-marker-card">
+
+                <div class="gps-marker-avatar">
+                    <span>
+                        ${initial}
+                    </span>
+
+                    <i class="gps-marker-online"></i>
+                </div>
+
+                <div class="gps-marker-name">
+                    ${name}
+                </div>
+
+            </div>
+
+            <div class="gps-marker-pin">
+
+                <div class="gps-marker-pin-inner"></div>
+
+            </div>
+
         </div>
     `;
 
-
     return element;
 }
-
 
 /* =========================================================
    MY MARKER
@@ -3446,6 +3471,495 @@ window.GPS_DEBUG = {
         location.reload();
     }
 };
+
+/* =========================================================
+   PREMIUM GPS MARKER STYLE
+   ========================================================= */
+
+(function injectPremiumMarkerStyle() {
+
+    if (document.getElementById("premium-gps-marker-style")) {
+        return;
+    }
+
+    const style = document.createElement("style");
+
+    style.id = "premium-gps-marker-style";
+
+    style.textContent = `
+
+        /* ================================================
+           MAIN MARKER
+           ================================================ */
+
+        .gps-premium-marker {
+            position: relative;
+            width: 150px;
+            height: 86px;
+
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+
+            pointer-events: auto;
+
+            transform: translate(-50%, -100%);
+
+            font-family:
+                Inter,
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
+
+            z-index: 10;
+
+            transition:
+                transform .25s ease,
+                filter .25s ease;
+        }
+
+
+        .gps-premium-marker:hover {
+
+            transform:
+                translate(-50%, -100%)
+                scale(1.06);
+
+            z-index: 100;
+        }
+
+
+        /* ================================================
+           WRAPPER
+           ================================================ */
+
+        .gps-marker-wrapper {
+
+            position: relative;
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+        }
+
+
+        /* ================================================
+           CARD
+           ================================================ */
+
+        .gps-marker-card {
+
+            position: relative;
+
+            min-width: 118px;
+            max-width: 150px;
+
+            height: 50px;
+
+            padding: 6px 10px 6px 7px;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 8px;
+
+            border-radius: 16px;
+
+            background:
+                rgba(255,255,255,.96);
+
+            border:
+                1px solid
+                rgba(255,255,255,.85);
+
+            box-shadow:
+                0 8px 30px rgba(0,0,0,.18),
+                0 2px 8px rgba(0,0,0,.10),
+                inset 0 1px 0 rgba(255,255,255,.9);
+
+            backdrop-filter:
+                blur(16px);
+
+            -webkit-backdrop-filter:
+                blur(16px);
+
+            white-space: nowrap;
+
+            overflow: hidden;
+        }
+
+
+        /* ================================================
+           AVATAR
+           ================================================ */
+
+        .gps-marker-avatar {
+
+            position: relative;
+
+            width: 36px;
+            height: 36px;
+
+            min-width: 36px;
+
+            border-radius: 50%;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            color: white;
+
+            font-size: 14px;
+            font-weight: 800;
+
+            background:
+                linear-gradient(
+                    145deg,
+                    #22c55e,
+                    #16a34a
+                );
+
+            box-shadow:
+                0 4px 12px
+                rgba(22,163,74,.35),
+
+                inset 0 1px 1px
+                rgba(255,255,255,.35);
+        }
+
+
+        .gps-marker-avatar span {
+
+            position: relative;
+
+            z-index: 2;
+        }
+
+
+        /* ================================================
+           ONLINE DOT
+           ================================================ */
+
+        .gps-marker-online {
+
+            position: absolute;
+
+            right: -1px;
+            bottom: -1px;
+
+            width: 11px;
+            height: 11px;
+
+            border-radius: 50%;
+
+            background: #22c55e;
+
+            border:
+                2px solid white;
+
+            box-shadow:
+                0 0 0 3px
+                rgba(34,197,94,.15),
+
+                0 0 10px
+                rgba(34,197,94,.65);
+
+            animation:
+                gps-online-pulse 2s infinite;
+        }
+
+
+        @keyframes gps-online-pulse {
+
+            0%,
+            100% {
+
+                box-shadow:
+                    0 0 0 2px
+                    rgba(34,197,94,.10),
+
+                    0 0 7px
+                    rgba(34,197,94,.45);
+            }
+
+            50% {
+
+                box-shadow:
+                    0 0 0 5px
+                    rgba(34,197,94,.08),
+
+                    0 0 14px
+                    rgba(34,197,94,.75);
+            }
+        }
+
+
+        /* ================================================
+           NAME
+           ================================================ */
+
+        .gps-marker-name {
+
+            max-width: 90px;
+
+            overflow: hidden;
+
+            text-overflow: ellipsis;
+
+            white-space: nowrap;
+
+            color: #17201c;
+
+            font-size: 13px;
+
+            font-weight: 700;
+
+            line-height: 1.2;
+        }
+
+
+        /* ================================================
+           PIN
+           ================================================ */
+
+        .gps-marker-pin {
+
+            position: relative;
+
+            width: 18px;
+            height: 18px;
+
+            margin-top: -4px;
+
+            transform:
+                rotate(45deg);
+
+            border-radius:
+                4px 4px 5px 4px;
+
+            background:
+                rgba(255,255,255,.96);
+
+            box-shadow:
+                4px 4px 10px
+                rgba(0,0,0,.12);
+        }
+
+
+        .gps-marker-pin-inner {
+
+            position: absolute;
+
+            left: 50%;
+            top: 50%;
+
+            width: 8px;
+            height: 8px;
+
+            transform:
+                translate(-50%, -50%);
+
+            border-radius: 50%;
+
+            background:
+                #19d66b;
+
+            box-shadow:
+                0 0 10px
+                rgba(25,214,107,.65);
+        }
+
+
+        /* ================================================
+           MY LOCATION
+           ================================================ */
+
+        .gps-premium-marker-me {
+
+            z-index: 30;
+        }
+
+
+        .gps-premium-marker-me
+        .gps-marker-card {
+
+            border:
+                1px solid
+                rgba(25,214,107,.35);
+
+            box-shadow:
+                0 10px 35px
+                rgba(25,214,107,.22),
+
+                0 3px 12px
+                rgba(0,0,0,.12),
+
+                inset 0 1px 0
+                rgba(255,255,255,.9);
+        }
+
+
+        .gps-premium-marker-me
+        .gps-marker-avatar {
+
+            background:
+                linear-gradient(
+                    145deg,
+                    #19d66b,
+                    #0fa958
+                );
+
+            box-shadow:
+                0 4px 16px
+                rgba(25,214,107,.42),
+
+                inset 0 1px 1px
+                rgba(255,255,255,.4);
+        }
+
+
+        .gps-premium-marker-me
+        .gps-marker-pin-inner {
+
+            background:
+                #19d66b;
+
+            box-shadow:
+                0 0 14px
+                rgba(25,214,107,.9);
+        }
+
+
+        /* ================================================
+           DARK MODE
+           ================================================ */
+
+        .dark
+        .gps-marker-card,
+
+        body.dark
+        .gps-marker-card {
+
+            background:
+                rgba(25,31,28,.96);
+
+            border:
+                1px solid
+                rgba(255,255,255,.10);
+
+            box-shadow:
+                0 10px 35px
+                rgba(0,0,0,.40),
+
+                inset 0 1px 0
+                rgba(255,255,255,.06);
+        }
+
+
+        .dark
+        .gps-marker-name,
+
+        body.dark
+        .gps-marker-name {
+
+            color: #f3f7f5;
+        }
+
+
+        .dark
+        .gps-marker-pin,
+
+        body.dark
+        .gps-marker-pin {
+
+            background:
+                rgba(25,31,28,.96);
+
+            box-shadow:
+                4px 4px 12px
+                rgba(0,0,0,.35);
+        }
+
+
+        /* ================================================
+           MOBILE
+           ================================================ */
+
+        @media (max-width: 600px) {
+
+            .gps-premium-marker {
+
+                width: 130px;
+                height: 78px;
+            }
+
+
+            .gps-marker-card {
+
+                min-width: 105px;
+
+                height: 44px;
+
+                padding:
+                    5px 8px 5px 6px;
+
+                gap: 7px;
+
+                border-radius: 14px;
+            }
+
+
+            .gps-marker-avatar {
+
+                width: 32px;
+                height: 32px;
+
+                min-width: 32px;
+
+                font-size: 12px;
+            }
+
+
+            .gps-marker-online {
+
+                width: 10px;
+                height: 10px;
+            }
+
+
+            .gps-marker-name {
+
+                max-width: 78px;
+
+                font-size: 12px;
+            }
+
+
+            .gps-marker-pin {
+
+                width: 16px;
+                height: 16px;
+            }
+
+
+            .gps-marker-pin-inner {
+
+                width: 7px;
+                height: 7px;
+            }
+        }
+
+    `;
+
+    document.head.appendChild(style);
+
+})();
 
 
 /* =========================================================
