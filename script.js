@@ -27,6 +27,7 @@ let currentRoomCode =
     localStorage.getItem("gps-room-code") || "";
 
 let pendingAction = null;
+let pendingActionSent = false;
 
 let reconnectTimer = null;
 let reconnectAttempts = 0;
@@ -723,49 +724,30 @@ function getWebSocketUrl() {
 
 function connectWebSocket() {
 
-    manuallyClosed =
-        false;
-
+    manuallyClosed = false;
 
     if (
         ws &&
         (
-            ws.readyState ===
-            WebSocket.OPEN ||
-            ws.readyState ===
-            WebSocket.CONNECTING
+            ws.readyState === WebSocket.OPEN ||
+            ws.readyState === WebSocket.CONNECTING
         )
     ) {
-
-        if (
-            pendingAction
-        ) {
-
-            if (
-                ws.readyState ===
-                WebSocket.OPEN
-            ) {
-
-                sendPendingAction();
-            }
-        }
-
         return;
     }
 
+    pendingActionSent = false;
 
     setConnectionStatus(
         "Ulanmoqda...",
         "connecting"
     );
 
-
     try {
 
-        ws =
-            new WebSocket(
-                getWebSocketUrl()
-            );
+        ws = new WebSocket(
+            getWebSocketUrl()
+        );
 
     } catch (error) {
 
@@ -779,22 +761,24 @@ function connectWebSocket() {
         return;
     }
 
-
     ws.addEventListener(
         "open",
         () => {
 
-            reconnectAttempts =
-                0;
-
+            reconnectAttempts = 0;
 
             setConnectionStatus(
                 "Ulangan",
                 "online"
             );
 
-
-            sendPendingAction();
+            /*
+             * MUHIM:
+             * Bu yerda sendPendingAction() chaqirilmaydi.
+             *
+             * Server avval "connected" yuboradi.
+             * Shundan keyin action faqat bir marta yuboriladi.
+             */
         }
     );
 
@@ -814,7 +798,6 @@ function connectWebSocket() {
                 error
             );
 
-
             setConnectionStatus(
                 "Ulanish xatosi",
                 "error"
@@ -827,23 +810,20 @@ function connectWebSocket() {
         "close",
         () => {
 
+            pendingActionSent = false;
+
             setConnectionStatus(
                 "Ulanish uzildi",
                 "offline"
             );
 
-
-            if (
-                !manuallyClosed
-            ) {
+            if (!manuallyClosed) {
 
                 scheduleReconnect();
             }
         }
     );
 }
-
-
 /* =========================================================
    RECONNECT
    ========================================================= */
@@ -904,23 +884,26 @@ function sendPendingAction() {
 
     if (
         !ws ||
-        ws.readyState !==
-        WebSocket.OPEN
+        ws.readyState !== WebSocket.OPEN
     ) {
+        return;
+    }
+
+    if (!pendingAction) {
+        return;
+    }
+
+    /*
+     * Bir WebSocket ulanishida
+     * action faqat bir marta yuboriladi.
+     */
+    if (pendingActionSent) {
         return;
     }
 
 
     if (
-        !pendingAction
-    ) {
-        return;
-    }
-
-
-    if (
-        pendingAction.type ===
-        "create"
+        pendingAction.type === "create"
     ) {
 
         const name =
@@ -930,16 +913,13 @@ function sendPendingAction() {
                 "Noma'lum"
             )
                 .trim()
-                .slice(
-                    0,
-                    100
-                );
+                .slice(0, 100);
 
 
         ws.send(
             JSON.stringify({
-                type:
-                    "create-room",
+
+                type: "create-room",
 
                 userId:
                     currentUserId || null,
@@ -949,13 +929,14 @@ function sendPendingAction() {
         );
 
 
+        pendingActionSent = true;
+
         return;
     }
 
 
     if (
-        pendingAction.type ===
-        "join"
+        pendingAction.type === "join"
     ) {
 
         const roomCode =
@@ -971,17 +952,13 @@ function sendPendingAction() {
                 "Noma'lum"
             )
                 .trim()
-                .slice(
-                    0,
-                    100
-                );
+                .slice(0, 100);
 
 
         ws.send(
             JSON.stringify({
 
-                type:
-                    "join-room",
+                type: "join-room",
 
                 roomCode,
 
@@ -991,9 +968,11 @@ function sendPendingAction() {
                 name
             })
         );
+
+
+        pendingActionSent = true;
     }
 }
-
 
 /* =========================================================
    SERVER MESSAGE
@@ -1034,34 +1013,46 @@ function handleServerMessage(
        CONNECTED
        ===================================================== */
 
+   if (
+    data.type ===
+    "connected"
+) {
+
+    /*
+     * Agar localStorage'da userId allaqachon mavjud bo'lsa,
+     * server yuborgan yangi vaqtinchalik ID bilan
+     * uni almashtirmaymiz.
+     *
+     * Bu F5/reconnect paytida aynan o'sha userni
+     * davom ettirish uchun kerak.
+     */
+
     if (
-        data.type ===
-        "connected"
+        !currentUserId &&
+        data.userId
     ) {
 
-        if (
-            data.userId
-        ) {
-
-            currentUserId =
-                String(
-                    data.userId
-                );
-
-
-            localStorage.setItem(
-                "gps-user-id",
-                currentUserId
+        currentUserId =
+            String(
+                data.userId
             );
-        }
 
 
-        sendPendingAction();
-
-        return;
+        localStorage.setItem(
+            "gps-user-id",
+            currentUserId
+        );
     }
 
 
+    /*
+     * Endi pending action faqat bir marta yuboriladi.
+     */
+    sendPendingAction();
+
+    return;
+}
+  
     /* =====================================================
        ROOM CREATED
        ===================================================== */
