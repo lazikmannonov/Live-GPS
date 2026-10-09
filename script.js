@@ -3205,13 +3205,11 @@ function updateMyMarker() {
     }
 }
 
-
 /* =========================================================
-   MAP USERS
+   MAP USERS — GPS KOORDINATALARINI TEKSHIRISH
    ========================================================= */
 
 function updateMapUsers() {
-
     if (
         !mapInitialized ||
         !map ||
@@ -3220,184 +3218,122 @@ function updateMapUsers() {
         return;
     }
 
-
-    const activeIds =
-        new Set();
-
+    const activeIds = new Set();
 
     users.forEach(user => {
+        const id = String(user.id ?? "");
 
-        const id =
-            String(
-                user.id
+        // ID bo‘lmasa, marker yaratmaymiz.
+        if (!id) return;
+
+        // O‘z markerimiz alohida boshqariladi.
+        if (id === String(currentUserId)) return;
+
+        /*
+         * MUHIM:
+         * Number(null) va Number("") natijasi 0 bo‘ladi.
+         * Shu sababli bo‘sh koordinatalar Afrikadagi
+         * [0, 0] nuqtasi sifatida chiqishi mumkin.
+         */
+        if (
+            user.lat === null ||
+            user.lat === undefined ||
+            user.lat === "" ||
+            user.lng === null ||
+            user.lng === undefined ||
+            user.lng === ""
+        ) {
+            return;
+        }
+
+        const lat = Number(user.lat);
+        const lng = Number(user.lng);
+
+        if (
+            !Number.isFinite(lat) ||
+            !Number.isFinite(lng) ||
+            lat < -90 ||
+            lat > 90 ||
+            lng < -180 ||
+            lng > 180
+        ) {
+            console.warn(
+                "Noto‘g‘ri foydalanuvchi koordinatasi:",
+                {
+                    id: user.id,
+                    name: user.name,
+                    lat: user.lat,
+                    lng: user.lng
+                }
             );
-
-
-        /*
-         * O'z markerimiz alohida.
-         */
-
-        if (
-            id ===
-            String(currentUserId)
-        ) {
             return;
         }
-
-
-        /*
-         * Faqat koordinatasi mavjud
-         * foydalanuvchilar xaritada ko‘rsatiladi.
-         *
-         * ONLINE ham,
-         * OFFLINE ham.
-         */
-
-        if (
-            !Number.isFinite(
-                Number(user.lat)
-            ) ||
-            !Number.isFinite(
-                Number(user.lng)
-            )
-        ) {
-            return;
-        }
-
 
         activeIds.add(id);
 
-
-        const position = [
-
-            Number(user.lng),
-
-            Number(user.lat)
-
-        ];
-
+        // Yandex Maps 3.0 tartibi: [longitude, latitude]
+        const position = [lng, lat];
 
         try {
+            if (userMarkers.has(id)) {
+                const markerData = userMarkers.get(id);
 
-            if (
-                userMarkers.has(id)
-            ) {
-
-                const markerData =
-                    userMarkers.get(id);
-
-
-                const marker =
-                    markerData.marker;
-
-
-                marker.update({
-
-                    coordinates:
-                        position
-
+                markerData.marker.update({
+                    coordinates: position
                 });
 
-
                 updateMarkerElement(
-
                     markerData.element,
-
                     user,
-
+                    false
+                );
+            } else {
+                const element = createMarkerElement(
+                    user,
                     false
                 );
 
-
-            } else {
-
-                const element =
-                    createMarkerElement(
-                        user,
-                        false
-                    );
-
-
-                const marker =
-                    new ymaps3.YMapMarker(
-
-                        {
-
-                            coordinates:
-                                position
-
-                        },
-
-                        element
-
-                    );
-
-
-                map.addChild(
-                    marker
-                );
-
-
-                userMarkers.set(
-
-                    id,
-
+                const marker = new ymaps3.YMapMarker(
                     {
-
-                        marker,
-
-                        element
-
-                    }
-
+                        coordinates: position
+                    },
+                    element
                 );
+
+                map.addChild(marker);
+
+                userMarkers.set(id, {
+                    marker,
+                    element
+                });
             }
-
         } catch (error) {
-
             console.error(
                 "User marker error:",
-                error
+                error,
+                user
             );
         }
     });
 
-
-    /*
-     * Guruhdan butunlay yo‘qolgan user
-     * markerini olib tashlaymiz.
-     *
-     * Offline user guruh ro‘yxatida bor bo‘lsa,
-     * uning eski koordinatasi marker sifatida
-     * saqlanadi.
-     */
-
-    for (
-        const [
-            id,
-            markerData
-        ]
-        of userMarkers.entries()
-    ) {
-
-        if (
-            !activeIds.has(id)
-        ) {
-
+    // Koordinatasi yo‘q yoki ro‘yxatdan olib tashlangan
+    // foydalanuvchilarning eski markerlarini tozalaymiz.
+    for (const [id, markerData] of userMarkers.entries()) {
+        if (!activeIds.has(id)) {
             try {
-
-                map.removeChild(
-                    markerData.marker
+                map.removeChild(markerData.marker);
+            } catch (error) {
+                console.warn(
+                    "Marker olib tashlanmadi:",
+                    id,
+                    error
                 );
-
-            } catch (error) {}
-
+            }
 
             userMarkers.delete(id);
         }
     }
 }
-
 
 /* =========================================================
    CLEAR MARKERS
