@@ -2366,3 +2366,146 @@ body.dark #savedGroupsCount {
         font-size: 10px;
     }
 }
+
+/* =========================================
+   PREMIUM BUTTONS — LIVE GPS
+========================================= */
+
+.primary-btn,
+.secondary-btn,
+.copy-btn,
+.map-control,
+.icon-btn,
+.leave-group-btn {
+    position: relative;
+    overflow: hidden;
+    font-family: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+        transform .2s ease,
+        box-shadow .2s ease,
+        background .2s ease,
+        border-color .2s ease;
+}
+
+/* Asosiy tugma */
+.primary-btn {
+    border: 0;
+    border-radius: 16px;
+    color: #fff;
+    background: linear-gradient(135deg, #19d66b, #079b4c);
+    box-shadow: 0 8px 22px rgba(25, 214, 107, .25);
+}
+
+.primary-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(25, 214, 107, .35);
+}
+
+/* Ikkinchi darajali tugma */
+.secondary-btn {
+    border: 1px solid rgba(25, 214, 107, .3);
+    border-radius: 15px;
+    color: var(--text);
+    background: var(--card-solid);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .05);
+}
+
+.secondary-btn:hover {
+    transform: translateY(-2px);
+    border-color: #19d66b;
+    box-shadow: 0 8px 20px rgba(25, 214, 107, .13);
+}
+
+/* Guruhga qo‘shilish */
+#joinRoomBtn {
+    min-height: 46px;
+    padding: 0 22px;
+    border-radius: 14px;
+    font-size: 13px;
+}
+
+/* Nusxalash tugmasi */
+.copy-btn {
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--card-solid);
+    color: var(--text);
+    padding: 11px 16px;
+}
+
+.copy-btn:hover {
+    transform: translateY(-2px);
+    border-color: #19d66b;
+    box-shadow: 0 6px 18px rgba(25, 214, 107, .12);
+}
+
+/* Xarita boshqaruv tugmalari */
+.map-control,
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--card-solid);
+    color: var(--text);
+    box-shadow: 0 5px 16px rgba(0, 0, 0, .1);
+}
+
+.map-control {
+    width: 44px;
+    height: 44px;
+    font-size: 21px;
+}
+
+.icon-btn {
+    width: 43px;
+    height: 43px;
+    font-size: 19px;
+}
+
+.map-control:hover,
+.icon-btn:hover {
+    transform: translateY(-2px);
+    border-color: #19d66b;
+    box-shadow: 0 7px 20px rgba(25, 214, 107, .18);
+}
+
+/* Bosilgandagi animatsiya */
+.primary-btn:active,
+.secondary-btn:active,
+.copy-btn:active,
+.map-control:active,
+.icon-btn:active,
+.leave-group-btn:active {
+    transform: scale(.97);
+}
+
+/* Klaviatura bilan tanlanganda */
+.primary-btn:focus-visible,
+.secondary-btn:focus-visible,
+.copy-btn:focus-visible,
+.map-control:focus-visible,
+.icon-btn:focus-visible {
+    outline: 3px solid rgba(25, 214, 107, .4);
+    outline-offset: 3px;
+}
+
+/* Telefon uchun */
+@media (max-width: 560px) {
+    .primary-btn,
+    .secondary-btn {
+        border-radius: 13px;
+    }
+
+    .map-control {
+        width: 40px;
+        height: 40px;
+    }
+
+    .copy-btn {
+        padding: 10px 12px;
+    }
+}
