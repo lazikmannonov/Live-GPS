@@ -1510,6 +1510,82 @@ wss.on(
                     }
 
                     
+                    /* =================================================
+                       DELETE SAVED GROUP
+                       ================================================= */
+
+                    if (data.type === "delete-saved-group") {
+                        const code = String(data.roomCode || "")
+                            .trim()
+                            .toUpperCase();
+
+                        const targetUserId = normalizeUserId(data.userId);
+
+                        if (
+                            !/^[A-Z0-9]{6}$/.test(code) ||
+                            !targetUserId
+                        ) {
+                            send(ws, {
+                                type: "error",
+                                message: "Guruh kodi yoki foydalanuvchi ID noto‘g‘ri."
+                            });
+                            return;
+                        }
+
+                        // Guruh xotirada bo'lmasa, bazadan yuklaymiz.
+                        const room = await ensureRoomLoaded(code);
+
+                        // Faqat shu foydalanuvchining markerini va yozuvini o'chiramiz.
+                        if (room) {
+                            const member = room.get(targetUserId);
+
+                            if (member) {
+                                // Boshqa qurilmada faol bo'lsa, unga ham xabar beramiz.
+                                if (
+                                    member.ws &&
+                                    member.ws !== ws &&
+                                    member.ws.readyState === WebSocket.OPEN
+                                ) {
+                                    send(member.ws, {
+                                        type: "removed-from-room",
+                                        roomCode: code,
+                                        userId: targetUserId
+                                    });
+                                }
+
+                                member.roomCode = null;
+                                member.online = false;
+                                member.ws = null;
+
+                                room.delete(targetUserId);
+                            }
+                        }
+
+                        // PostgreSQL'dan ham faqat shu yozuvni o'chiramiz.
+                        if (databaseReady && pool) {
+                            await pool.query(
+                                `DELETE FROM gps_members
+                                 WHERE room_code = $1
+                                   AND user_id = $2`,
+                                [code, targetUserId]
+                            );
+
+                            await updateRoom(code);
+                        }
+
+                        // Qolgan a'zolarga yangilangan ro'yxatni yuboramiz.
+                        if (room) {
+                            broadcastUsers(room);
+                        }
+
+                        send(ws, {
+                            type: "saved-group-removed",
+                            roomCode: code,
+                            userId: targetUserId
+                        });
+
+                        return;
+                    }
 
                     /* =================================================
                        LEAVE
@@ -1580,89 +1656,6 @@ wss.on(
                 }
             }
         );
-        
-        
-                    /* =================================================
-                       DELETE SAVED GROUP MEMBERSHIP
-                       Faqat so'rov yuborgan foydalanuvchining
-                       tanlangan guruhdagi yozuvini o'chiradi.
-                       ================================================= */
-
-                    if (
-                        data.type === "delete-saved-group"
-                    ) {
-                        const code = String(
-                            data.roomCode || ""
-                        ).trim().toUpperCase();
-
-                        const targetUserId =
-                            normalizeUserId(data.userId);
-
-                        if (
-                            !/^[A-Z0-9]{6}$/.test(code) ||
-                            !targetUserId
-                        ) {
-                            send(ws, {
-                                type: "error",
-                                message: "Guruh kodi yoki foydalanuvchi ID noto‘g‘ri."
-                            });
-                            return;
-                        }
-
-                        // Guruhni xotiradan yoki bazadan yuklash.
-                        const room = await ensureRoomLoaded(code);
-
-                        // Tanlangan guruhdan faqat shu foydalanuvchini o'chirish.
-                        if (room) {
-                            const member = room.get(targetUserId);
-
-                            if (member) {
-                                // Boshqa qurilmada shu foydalanuvchi
-                                // faol bo'lsa, unga ham xabar yuboriladi.
-                                if (
-                                    member.ws &&
-                                    member.ws.readyState === WebSocket.OPEN
-                                ) {
-                                    send(member.ws, {
-                                        type: "removed-from-room",
-                                        roomCode: code,
-                                        userId: targetUserId
-                                    });
-                                }
-
-                                member.roomCode = null;
-                                member.online = false;
-                                member.ws = null;
-
-                                room.delete(targetUserId);
-                            }
-                        }
-
-                        // PostgreSQL'dan faqat shu a'zoning yozuvini o'chirish.
-                        if (databaseReady && pool) {
-                            await pool.query(
-                                `DELETE FROM gps_members
-                                 WHERE room_code = $1
-                                 AND user_id = $2`,
-                                [code, targetUserId]
-                            );
-
-                            await updateRoom(code);
-                        }
-
-                        // Qolgan a'zolarga yangilangan ro'yxatni yuborish.
-                        if (room) {
-                            broadcastUsers(room);
-                        }
-
-                        send(ws, {
-                            type: "saved-group-removed",
-                            roomCode: code,
-                            userId: targetUserId
-                        });
-
-                        return;
-                    }
         
         /* =========================================================
            SOCKET CLOSE
