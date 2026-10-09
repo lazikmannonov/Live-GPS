@@ -2124,3 +2124,245 @@ body.dark .switch-form input{
         font-size: 10px;
     }
 }
+
+/* =========================================
+   PREMIUM — SAQLANGAN GURUHLAR
+========================================= */
+
+#savedGroupsSection {
+    margin-top: 25px;
+    padding: 22px;
+
+    border: 1px solid var(--border);
+    border-radius: 23px;
+
+    background: var(--card);
+
+    box-shadow: var(--shadow-small);
+
+    animation: savedGroupsAppear 0.35s ease both;
+}
+
+@keyframes savedGroupsAppear {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Bo‘lim sarlavhasi */
+
+#savedGroupsSection h2,
+#savedGroupsSection h3 {
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: -0.3px;
+}
+
+#savedGroupsSection p {
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.6;
+}
+
+/* Guruhlar ro‘yxati */
+
+#savedGroupsList {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 11px;
+    margin-top: 16px;
+}
+
+/* Guruh kartasi — JavaScript yaratadigan elementlarga mos */
+
+#savedGroupsList > div {
+    min-width: 0;
+}
+
+/* Saqlangan guruh kartalari */
+
+.saved-group,
+.saved-group-card,
+.saved-room,
+.saved-room-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+
+    min-width: 0;
+    padding: 15px;
+
+    border: 1px solid var(--border);
+    border-radius: 17px;
+
+    background: rgba(25, 214, 107, 0.035);
+
+    transition:
+        border-color 0.2s ease,
+        background 0.2s ease,
+        transform 0.2s ease;
+}
+
+body.dark .saved-group,
+body.dark .saved-group-card,
+body.dark .saved-room,
+body.dark .saved-room-card {
+    background: rgba(25, 214, 107, 0.045);
+}
+
+.saved-group:hover,
+.saved-group-card:hover,
+.saved-room:hover,
+.saved-room-card:hover {
+    border-color: rgba(25, 214, 107, 0.3);
+    transform: translateY(-2px);
+}
+
+/* Guruh kodi */
+
+.saved-group-code,
+.saved-room-code {
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    overflow-wrap: anywhere;
+}
+
+/* Tugmalar joylashuvi */
+
+.saved-group-actions,
+.saved-room-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+/* Kirish tugmasi */
+
+.saved-group button,
+.saved-group-card button,
+.saved-room button,
+.saved-room-card button {
+    min-height: 34px;
+    padding: 0 12px;
+
+    border: 1px solid var(--border);
+    border-radius: 10px;
+
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 800;
+
+    cursor: pointer;
+
+    transition:
+        transform 0.2s ease,
+        background 0.2s ease,
+        border-color 0.2s ease;
+}
+
+.saved-group button:hover,
+.saved-group-card button:hover,
+.saved-room button:hover,
+.saved-room-card button:hover {
+    transform: translateY(-1px);
+}
+
+/* Yashil Kirish tugmasi */
+
+.saved-group button:first-of-type,
+.saved-group-card button:first-of-type,
+.saved-room button:first-of-type,
+.saved-room-card button:first-of-type {
+    color: #078844;
+    background: rgba(25, 214, 107, 0.11);
+    border-color: rgba(25, 214, 107, 0.22);
+}
+
+/* O‘chirish tugmasi */
+
+.saved-group button:last-of-type,
+.saved-group-card button:last-of-type,
+.saved-room button:last-of-type,
+.saved-room-card button:last-of-type {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.07);
+    border-color: rgba(239, 68, 68, 0.18);
+}
+
+/* Saqlangan guruhlar soni */
+
+#savedGroupsCount {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    min-width: 28px;
+    min-height: 28px;
+    padding: 0 8px;
+
+    border-radius: 9px;
+
+    color: var(--green-dark);
+    background: rgba(25, 214, 107, 0.12);
+
+    font-size: 11px;
+    font-weight: 900;
+}
+
+body.dark #savedGroupsCount {
+    color: #46eb91;
+}
+
+/* Telefon */
+
+@media (max-width: 560px) {
+    #savedGroupsSection {
+        margin-top: 18px;
+        padding: 16px;
+        border-radius: 19px;
+    }
+
+    #savedGroupsList {
+        gap: 9px;
+    }
+
+    .saved-group,
+    .saved-group-card,
+    .saved-room,
+    .saved-room-card {
+        padding: 12px;
+        gap: 8px;
+    }
+
+    .saved-group-code,
+    .saved-room-code {
+        font-size: 14px;
+        letter-spacing: 1.5px;
+    }
+
+    .saved-group-actions,
+    .saved-room-actions {
+        gap: 5px;
+    }
+
+    .saved-group button,
+    .saved-group-card button,
+    .saved-room button,
+    .saved-room-card button {
+        min-height: 32px;
+        padding: 0 9px;
+        font-size: 10px;
+    }
+}
