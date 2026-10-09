@@ -2509,3 +2509,130 @@ body.dark #savedGroupsCount {
         padding: 10px 12px;
     }
 }
+
+/* ==========================================
+   PREMIUM — SAQLANGAN GURUHLAR
+========================================== */
+
+#savedGroupsSection {
+    margin-top: 26px;
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: var(--card);
+    box-shadow: var(--shadow-small);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+
+/* Bo‘lim sarlavhasi */
+#savedGroupsSection h2,
+#savedGroupsSection h3 {
+    color: var(--text);
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: -.4px;
+}
+
+#savedGroupsSection p {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* Guruhlar ro‘yxati */
+#savedGroupsList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 17px;
+}
+
+/* Guruh kartasi — mavjud klasslarga moslashish */
+#savedGroupsList > div {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 13px;
+    padding: 17px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--card-solid);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .035);
+    transition: transform .2s ease, border-color .2s ease,
+                box-shadow .2s ease;
+}
+
+#savedGroupsList > div:hover {
+    transform: translateY(-2px);
+    border-color: rgba(25, 214, 107, .4);
+    box-shadow: 0 9px 24px rgba(25, 214, 107, .09);
+}
+
+/* Guruh kodi */
+#savedGroupsList strong,
+#savedGroupsList code {
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+}
+
+/* Kirish tugmasi */
+#savedGroupsList button {
+    min-height: 38px;
+    padding: 0 17px;
+    border: 1px solid rgba(25, 214, 107, .25);
+    border-radius: 12px;
+    background: linear-gradient(135deg, #19d66b, #0ca958);
+    color: #fff;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+
+#savedGroupsList button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(25, 214, 107, .25);
+}
+
+#savedGroupsList button:active {
+    transform: scale(.96);
+}
+
+/* Guruhlar soni */
+#savedGroupsCount {
+    display: inline-flex;
+    min-width: 30px;
+    height: 30px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(25, 214, 107, .25);
+    border-radius: 10px;
+    background: rgba(25, 214, 107, .12);
+    color: #0ca958;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+/* Telefon ekranlari */
+@media (max-width: 560px) {
+    #savedGroupsSection {
+        padding: 16px;
+        border-radius: 19px;
+    }
+
+    #savedGroupsList > div {
+        padding: 13px;
+        gap: 10px;
+        border-radius: 15px;
+    }
+
+    #savedGroupsList button {
+        min-height: 36px;
+        padding: 0 13px;
+    }
+}
