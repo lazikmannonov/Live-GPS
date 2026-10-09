@@ -1961,138 +1961,138 @@ function restoreSession() {
     showSetup();
 }
 
-
 /* =========================================================
-   LOCATION
+   LOCATION — ANDROID GPS ACCURACY FIX
    ========================================================= */
 
 function startLocationTracking() {
-
-    if (
-        !navigator.geolocation
-    ) {
-
+    if (!navigator.geolocation) {
         setLocationStatus(
             "GPS qo‘llab-quvvatlanmaydi",
             "error"
         );
-
         return;
     }
 
-
-    if (
-        watchId !== null
-    ) {
+    if (watchId !== null) {
         return;
     }
-
 
     setLocationStatus(
-        "Joylashuv olinmoqda...",
+        "GPS aniqlanmoqda...",
         "connecting"
     );
 
+    watchId = navigator.geolocation.watchPosition(
+        position => {
+            const coords = position.coords;
 
-    watchId =
-        navigator.geolocation.watchPosition(
+            const lat = Number(coords.latitude);
+            const lng = Number(coords.longitude);
+            const accuracy = Number(coords.accuracy);
 
-            position => {
+            console.log("GPS NATIJASI:", {
+                latitude: lat,
+                longitude: lng,
+                accuracyMeters: accuracy,
+                timestamp: position.timestamp
+            });
 
-                const coords =
-                    position.coords;
-
-
-                myLatitude =
-                    Number(
-                        coords.latitude
-                    );
-
-
-                myLongitude =
-                    Number(
-                        coords.longitude
-                    );
-
-
-                myAccuracy =
-                    Number(
-                        coords.accuracy
-                    );
-
-
+            if (
+                !Number.isFinite(lat) ||
+                !Number.isFinite(lng) ||
+                !Number.isFinite(accuracy) ||
+                lat < -90 ||
+                lat > 90 ||
+                lng < -180 ||
+                lng > 180
+            ) {
                 setLocationStatus(
-                    "Joylashuv aniqlandi",
-                    "online"
-                );
-
-
-                updateMyMarker();
-
-
-                sendLocation();
-
-
-                renderUsers();
-            },
-
-
-            error => {
-
-                console.error(
-                    "GPS error:",
-                    error
-                );
-
-
-                let message =
-                    "Joylashuv olinmadi.";
-
-
-                if (
-                    error.code === 1
-                ) {
-
-                    message =
-                        "Joylashuvga ruxsat berilmagan.";
-
-                } else if (
-                    error.code === 2
-                ) {
-
-                    message =
-                        "Joylashuv aniqlanmadi.";
-
-                } else if (
-                    error.code === 3
-                ) {
-
-                    message =
-                        "Joylashuv olish vaqti tugadi.";
-                }
-
-
-                setLocationStatus(
-                    message,
+                    "GPS koordinatalari noto‘g‘ri",
                     "error"
                 );
-            },
-
-
-            {
-
-                enableHighAccuracy:
-                    true,
-
-                maximumAge:
-                    5000,
-
-                timeout:
-                    15000
+                return;
             }
-        );
-}
 
+            /*
+             * Aniqlik 200 metrdan yomon bo‘lsa,
+             * yangi nuqtani xaritaga yubormaymiz.
+             */
+            const MAX_ACCURACY_METERS = 200;
+
+            if (accuracy > MAX_ACCURACY_METERS) {
+                const distanceText =
+                    accuracy >= 1000
+                        ? `${(accuracy / 1000).toFixed(1)} km`
+                        : `${Math.round(accuracy)} m`;
+
+                setLocationStatus(
+                    `GPS noaniq: ±${distanceText}`,
+                    "error"
+                );
+
+                console.warn(
+                    "GPS aniqligi yetarli emas:",
+                    accuracy,
+                    "metr"
+                );
+
+                return;
+            }
+
+            /*
+             * Faqat yetarlicha aniq koordinatani qabul qilamiz.
+             */
+            myLatitude = lat;
+            myLongitude = lng;
+            myAccuracy = accuracy;
+
+            setLocationStatus(
+                `GPS aniqligi: ±${Math.round(accuracy)} m`,
+                "online"
+            );
+
+            updateMyMarker();
+            sendLocation();
+            renderUsers();
+        },
+
+        error => {
+            console.error("GPS ERROR:", {
+                code: error.code,
+                message: error.message
+            });
+
+            if (error.code === 1) {
+                setLocationStatus(
+                    "Joylashuvga ruxsat berilmagan",
+                    "error"
+                );
+            } else if (error.code === 2) {
+                setLocationStatus(
+                    "GPS signali topilmadi",
+                    "error"
+                );
+            } else if (error.code === 3) {
+                setLocationStatus(
+                    "GPS vaqti tugadi — qayta urinilmoqda",
+                    "error"
+                );
+            } else {
+                setLocationStatus(
+                    "GPS xatosi",
+                    "error"
+                );
+            }
+        },
+
+        {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 30000
+        }
+    );
+}
 
 function stopLocationTracking() {
 
