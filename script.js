@@ -2037,13 +2037,21 @@ function restoreSession() {
 }
 
 /* =========================================================
-   LOCATION — ANDROID GPS ACCURACY FIX
+   LOCATION — CHROME VA ANDROID UCHUN
    ========================================================= */
 
 function startLocationTracking() {
     if (!navigator.geolocation) {
         setLocationStatus(
-            "GPS qo‘llab-quvvatlanmaydi",
+            "Brauzer GPSni qo‘llamaydi",
+            "error"
+        );
+        return;
+    }
+
+    if (!window.isSecureContext) {
+        setLocationStatus(
+            "Sayt HTTPS orqali ochilishi kerak",
             "error"
         );
         return;
@@ -2054,7 +2062,7 @@ function startLocationTracking() {
     }
 
     setLocationStatus(
-        "GPS aniqlanmoqda...",
+        "Joylashuv so‘ralmoqda...",
         "connecting"
     );
 
@@ -2066,17 +2074,16 @@ function startLocationTracking() {
             const lng = Number(coords.longitude);
             const accuracy = Number(coords.accuracy);
 
-            console.log("GPS NATIJASI:", {
-                latitude: lat,
-                longitude: lng,
-                accuracyMeters: accuracy,
+            console.log("CHROME GPS:", {
+                lat,
+                lng,
+                accuracy,
                 timestamp: position.timestamp
             });
 
             if (
                 !Number.isFinite(lat) ||
                 !Number.isFinite(lng) ||
-                !Number.isFinite(accuracy) ||
                 lat < -90 ||
                 lat > 90 ||
                 lng < -180 ||
@@ -2089,41 +2096,23 @@ function startLocationTracking() {
                 return;
             }
 
-            /*
-             * Aniqlik 200 metrdan yomon bo‘lsa,
-             * yangi nuqtani xaritaga yubormaymiz.
-             */
-            const MAX_ACCURACY_METERS = 200;
-
-            if (accuracy > MAX_ACCURACY_METERS) {
-                const distanceText =
-                    accuracy >= 1000
-                        ? `${(accuracy / 1000).toFixed(1)} km`
-                        : `${Math.round(accuracy)} m`;
-
-                setLocationStatus(
-                    `GPS noaniq: ±${distanceText}`,
-                    "error"
-                );
-
-                console.warn(
-                    "GPS aniqligi yetarli emas:",
-                    accuracy,
-                    "metr"
-                );
-
-                return;
-            }
-
-            /*
-             * Faqat yetarlicha aniq koordinatani qabul qilamiz.
-             */
+            // GPS aniqligi 200 metrdan yomon bo‘lsa ham,
+            // haqiqiy koordinatani darhol rad etmaymiz.
             myLatitude = lat;
             myLongitude = lng;
-            myAccuracy = accuracy;
+            myAccuracy = Number.isFinite(accuracy)
+                ? accuracy
+                : null;
+
+            const accuracyText =
+                Number.isFinite(accuracy)
+                    ? accuracy >= 1000
+                        ? `±${(accuracy / 1000).toFixed(1)} km`
+                        : `±${Math.round(accuracy)} m`
+                    : "aniqlik noma’lum";
 
             setLocationStatus(
-                `GPS aniqligi: ±${Math.round(accuracy)} m`,
+                `Joylashuv olindi (${accuracyText})`,
                 "online"
             );
 
@@ -2133,29 +2122,29 @@ function startLocationTracking() {
         },
 
         error => {
-            console.error("GPS ERROR:", {
+            console.error("CHROME GPS ERROR:", {
                 code: error.code,
                 message: error.message
             });
 
             if (error.code === 1) {
                 setLocationStatus(
-                    "Joylashuvga ruxsat berilmagan",
+                    "Chrome’da joylashuvga ruxsat bering",
                     "error"
                 );
             } else if (error.code === 2) {
                 setLocationStatus(
-                    "GPS signali topilmadi",
+                    "Joylashuv topilmadi. GPSni tekshiring",
                     "error"
                 );
             } else if (error.code === 3) {
                 setLocationStatus(
-                    "GPS vaqti tugadi — qayta urinilmoqda",
-                    "error"
+                    "GPS sekin javob bermoqda. Kutilmoqda...",
+                    "connecting"
                 );
             } else {
                 setLocationStatus(
-                    "GPS xatosi",
+                    "GPS xatosi: sahifani qayta oching",
                     "error"
                 );
             }
@@ -2163,8 +2152,8 @@ function startLocationTracking() {
 
         {
             enableHighAccuracy: true,
-            maximumAge: 0,
-            timeout: 30000
+            maximumAge: 10000,
+            timeout: 60000
         }
     );
 }
