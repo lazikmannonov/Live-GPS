@@ -236,21 +236,55 @@ function addSavedGroup(
 }
 
 
-function removeSavedGroup(
-    roomCode
-) {
+function removeSavedGroup(roomCode) {
+    const code = normalizeRoomCode(roomCode);
 
-    roomCode =
-        normalizeRoomCode(roomCode);
+    if (!/^[A-Z0-9]{6}$/.test(code)) return;
 
-    savedGroups =
-        savedGroups.filter(
-            group =>
-                group.code !== roomCode
-        );
+    // Serverga o'z yozuvimizni o'chirish so'rovini yuboramiz.
+    if (ws && ws.readyState === WebSocket.OPEN && currentUserId) {
+        ws.send(JSON.stringify({
+            type: "delete-saved-group",
+            roomCode: code,
+            userId: currentUserId
+        }));
+    }
+
+    // Saqlangan guruhlar ro'yxatidan olib tashlash.
+    savedGroups = savedGroups.filter(
+        group => normalizeRoomCode(group.code) !== code
+    );
 
     saveSavedGroups();
     renderSavedGroups();
+
+    // O'chirilgan guruh ochiq bo'lsa, shu sessiyani yakunlaymiz.
+    if (currentRoomCode === code) {
+        currentRoomCode = "";
+
+        localStorage.removeItem(ROOM_CODE_KEY);
+
+        if (normalizeRoomCode(localStorage.getItem(LAST_ROOM_KEY)) === code) {
+            localStorage.removeItem(LAST_ROOM_KEY);
+        }
+
+        pendingAction = null;
+        pendingActionSent = false;
+        switchPendingAction = null;
+
+        if (switchFallbackTimer) {
+            clearTimeout(switchFallbackTimer);
+            switchFallbackTimer = null;
+        }
+
+        stopLocationTracking();
+
+        users = [];
+        renderUsers();
+        clearMapMarkers();
+
+        showSetup();
+    }
 }
 
 
@@ -1219,6 +1253,47 @@ function handleServerMessage(event) {
     );
 
 
+    /* =====================================================
+       DELETED SAVED GROUP RESPONSE
+       ===================================================== */
+
+    if (
+        data.type === "removed-from-room" ||
+        data.type === "saved-group-removed"
+    ) {
+        const code = normalizeRoomCode(data.roomCode);
+
+        if (data.type === "removed-from-room") {
+            // Boshqa qurilmadagi shu foydalanuvchi sessiyasi.
+            if (
+                String(data.userId) === String(currentUserId) &&
+                currentRoomCode === code
+            ) {
+                currentRoomCode = "";
+
+                localStorage.removeItem(ROOM_CODE_KEY);
+
+                if (
+                    normalizeRoomCode(localStorage.getItem(LAST_ROOM_KEY)) === code
+                ) {
+                    localStorage.removeItem(LAST_ROOM_KEY);
+                }
+
+                pendingAction = null;
+                pendingActionSent = false;
+
+                stopLocationTracking();
+
+                users = [];
+                renderUsers();
+                clearMapMarkers();
+                showSetup();
+            }
+        }
+
+        return;
+    }
+   
     /* =====================================================
        CONNECTED
        ===================================================== */
