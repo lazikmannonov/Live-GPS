@@ -371,176 +371,136 @@
     </div>
 
 
-    <!-- STATUS -->
+<!-- PREMIUM TRACKING WORKSPACE -->
 
-    <div class="status-grid">
+<div class="tracking-layout">
 
-        <div class="status-card">
+    <div class="tracking-main">
 
-            <div class="status-card-icon green-icon">
-                ●
+        <!-- STATUS -->
+        <div class="status-grid">
+
+            <div class="status-card">
+                <div class="status-card-icon green-icon">●</div>
+                <div>
+                    <span>Aloqa holati</span>
+                    <strong id="connectionStatus">Ulanmoqda...</strong>
+                </div>
             </div>
 
-            <div>
-                <span>Aloqa</span>
-
-                <strong id="connectionStatus">
-                    Ulanmoqda...
-                </strong>
+            <div class="status-card">
+                <div class="status-card-icon blue-icon">⌖</div>
+                <div>
+                    <span>GPS holati</span>
+                    <strong id="locationStatus">Kutilmoqda...</strong>
+                </div>
             </div>
 
         </div>
 
+        <!-- MAIN MAP -->
+        <div class="map-wrapper">
 
-        <div class="status-card">
+            <div class="map-header">
 
-            <div class="status-card-icon blue-icon">
-                ⌖
+                <div class="map-title">
+                    <div class="map-title-icon">⌖</div>
+                    <div>
+                        <strong>Live tracking</strong>
+                        <span>Real-time location intelligence</span>
+                    </div>
+                </div>
+
+                <div class="map-live">
+                    <span></span>
+                    LIVE
+                </div>
+
             </div>
 
-            <div>
-                <span>GPS</span>
+            <div class="map-container">
 
-                <strong id="locationStatus">
-                    Kutilmoqda...
-                </strong>
+                <div id="map" class="map"></div>
+
+                <div class="map-floating-controls">
+
+                    <button
+                        id="myLocationBtn"
+                        class="map-control"
+                        type="button"
+                        title="Mening joylashuvim"
+                        aria-label="Mening joylashuvim"
+                    >◎</button>
+
+                    <button
+                        id="centerMapBtn"
+                        class="map-control"
+                        type="button"
+                        title="Guruhni ko‘rsatish"
+                        aria-label="Guruhni ko‘rsatish"
+                    >⛶</button>
+
+                </div>
+
+                <div class="map-info-card">
+                    <div class="map-info-dot"></div>
+                    <div>
+                        <strong>Live location</strong>
+                        <span>Joylashuvlar real vaqtda yangilanadi</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="map-bottom-bar">
+                <span class="map-bottom-indicator"></span>
+                <span>Tracking tizimi</span>
+                <span class="map-bottom-separator">/</span>
+                <span>Real-time monitoring</span>
             </div>
 
         </div>
 
     </div>
 
+    <!-- RIGHT SIDEBAR -->
+    <aside class="tracking-sidebar">
 
-    <!-- MAP -->
-
-    <div class="map-wrapper">
-
-        <div class="map-header">
-
-            <div class="map-title">
-
-                <div class="map-title-icon">
-                    ⌖
-                </div>
-
-                <div>
-                    <strong>Live xarita</strong>
-
-                    <span>
-                        Real-time locations
-                    </span>
-                </div>
-
-            </div>
-
-
-            <div class="map-live">
-                <span></span>
-                LIVE
-            </div>
-
-        </div>
-
-
-        <div class="map-container">
-
-            <div
-                id="map"
-                class="map"
-            ></div>
-
-
-            <div class="map-floating-controls">
-
-                <button
-                    id="myLocationBtn"
-                    class="map-control"
-                    type="button"
-                    title="Mening joylashuvim"
-                    aria-label="Mening joylashuvim"
-                >
-                    ◎
-                </button>
-
-
-                <button
-                    id="centerMapBtn"
-                    class="map-control"
-                    type="button"
-                    title="Guruhni ko‘rsatish"
-                    aria-label="Guruhni ko‘rsatish"
-                >
-                    ⛶
-                </button>
-
-            </div>
-
-
-            <div class="map-info-card">
-
-                <div class="map-info-dot"></div>
-
-                <div>
-
-                    <strong>
-                        Live tracking
-                    </strong>
-
-                    <span>
-                        Joylashuvlar real vaqtda yangilanadi
-                    </span>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <!-- MEMBERS -->
-
-    <div class="members-section">
-
-        <div class="section-heading">
-
+        <div class="sidebar-heading">
             <div>
-
-                <h3>
-                    Guruh a'zolari
-                </h3>
-
-                <span>
-                    Hozirgi ishtirokchilar
-                </span>
-
+                <span class="eyebrow">LIVE NETWORK</span>
+                <h3>Guruh a’zolari</h3>
+                <p>Guruhdagi ishtirokchilar</p>
             </div>
 
-
-            <div
-                id="membersCount"
-                class="member-count"
-            >
-                0
-            </div>
-
+            <div id="membersCount" class="member-count">0</div>
         </div>
 
+        <div class="sidebar-live-status">
+            <span class="sidebar-live-dot"></span>
+            <span>Guruh holati</span>
+            <strong>LIVE</strong>
+        </div>
 
-        <div
-            id="membersList"
-            class="members-list"
-        >
+        <div id="membersList" class="members-list">
 
             <div class="empty-members">
-                A'zolar kutilmoqda...
+                A’zolar kutilmoqda...
             </div>
 
         </div>
 
-    </div>
+        <div class="sidebar-footer">
+            <div class="sidebar-footer-icon">⌖</div>
+            <div>
+                <strong>Location sharing</strong>
+                <span>Guruhga ulangan qurilmalar</span>
+            </div>
+        </div>
 
+    </aside>
+
+</div>
 
     <!-- SWITCH ROOM -->
 
