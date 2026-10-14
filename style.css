@@ -802,3 +802,38 @@ body:not(.dark) .switch-panel {
     flex: 1 1 100%;
   }
 }
+
+/* LIVE GPS — xaritani to‘liq kenglikka chiqarish */
+#map {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* Xarita joylashgan asosiy blok */
+.map-container,
+.map-wrapper,
+#mapContainer,
+.map-section {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* Xarita yonidagi panellar bilan joylashuv */
+.main-content,
+.dashboard-content,
+.tracking-layout {
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* Telefon ekranlari */
+@media (max-width: 768px) {
+    #map {
+        width: 100% !important;
+        height: 55vh;
+    }
+}
