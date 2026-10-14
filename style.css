@@ -890,3 +890,74 @@ body:not(.dark) .switch-panel {
         height: 450px;
     }
 }
+
+/* LIVE GPS — XARITANI KATTALASHTIRISH */
+#roomCard {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.tracking-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 280px !important;
+    gap: 20px !important;
+    width: 100% !important;
+    max-width: none !important;
+    align-items: start;
+}
+
+.tracking-main {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}
+
+.map-wrapper {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}
+
+.map-container {
+    display: block !important;
+    position: relative !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 650px !important;
+    overflow: hidden;
+}
+
+#map.map,
+#map {
+    display: block !important;
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}
+
+.tracking-sidebar {
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+/* Kichik ekranlar */
+@media (max-width: 900px) {
+    .tracking-layout {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .map-container {
+        height: 520px !important;
+    }
+}
+
+@media (max-width: 600px) {
+    .map-container {
+        height: 420px !important;
+    }
+}
