@@ -2409,3 +2409,202 @@ body.dark #savedGroupsCount {
         transition-duration: .01ms !important;
     }
 }
+
+
+/* =====================================================
+   LIVE GPS — PREMIUM VISUAL UPGRADE
+   Mavjud CSS oxiriga qo'shing
+   ===================================================== */
+
+:root {
+    --green: #19e58a;
+    --green2: #08b96a;
+    --green-dark: #07884e;
+    --radius: 22px;
+}
+
+body {
+    background:
+        radial-gradient(ellipse at 0% 0%, rgba(25, 229, 138, .12), transparent 35%),
+        radial-gradient(ellipse at 100% 15%, rgba(70, 120, 255, .10), transparent 30%),
+        var(--bg);
+    background-attachment: fixed;
+}
+
+.topbar {
+    min-height: 78px;
+    padding: 13px clamp(14px, 4vw, 42px);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 10px 35px rgba(0, 0, 0, .07);
+}
+
+.brand-icon {
+    border-radius: 15px;
+    box-shadow: 0 0 28px rgba(25, 229, 138, .25);
+}
+
+.brand-text strong {
+    font-size: 17px;
+    letter-spacing: -.6px;
+}
+
+.icon-btn,
+.copy-btn,
+.map-control {
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+
+.icon-btn:hover,
+.copy-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px rgba(25, 229, 138, .12);
+}
+
+.page {
+    width: min(1120px, calc(100% - 32px));
+    margin-top: 34px;
+}
+
+.setup-card {
+    max-width: 850px;
+    padding: clamp(24px, 5vw, 52px);
+    border-radius: 30px;
+    border-color: rgba(25, 229, 138, .14);
+    box-shadow: 0 30px 90px rgba(0, 0, 0, .10);
+}
+
+body.dark .setup-card {
+    background: linear-gradient(145deg, rgba(17, 29, 23, .97), rgba(8, 15, 12, .96));
+    border-color: rgba(25, 229, 138, .13);
+}
+
+.hero-title h1 {
+    letter-spacing: -2.5px;
+    line-height: 1.08;
+}
+
+.hero-title h1 span {
+    background: linear-gradient(100deg, #19e58a, #65f5b0);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+}
+
+.input-wrap {
+    border-radius: 15px;
+    border-color: var(--border);
+}
+
+.primary-btn {
+    min-height: 57px;
+    border-radius: 15px;
+    background: linear-gradient(120deg, #20e58a, #08aa60);
+    box-shadow: 0 12px 30px rgba(25, 214, 107, .20);
+}
+
+.primary-btn:hover {
+    box-shadow: 0 17px 38px rgba(25, 214, 107, .30);
+}
+
+.secondary-btn {
+    border-radius: 14px;
+}
+
+.feature {
+    border-radius: 17px;
+}
+
+.room-top {
+    border-color: rgba(25, 229, 138, .17);
+    border-radius: 26px;
+}
+
+.status-card,
+.members-section,
+.switch-panel,
+#savedGroupsSection {
+    border-radius: 21px;
+    transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+
+.status-card:hover {
+    border-color: rgba(25, 229, 138, .30);
+    box-shadow: 0 15px 35px rgba(25, 214, 107, .08);
+}
+
+.map-wrapper {
+    border-radius: 25px;
+    border-color: rgba(25, 229, 138, .15);
+    box-shadow: 0 25px 70px rgba(0, 0, 0, .12);
+}
+
+.map-header {
+    min-height: 78px;
+    padding: 14px 22px;
+}
+
+.map-control {
+    border-radius: 13px;
+}
+
+.map-control:hover {
+    transform: translateY(-2px) scale(1.04);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, .22);
+}
+
+.members-section {
+    padding: clamp(17px, 3vw, 27px);
+}
+
+.member {
+    border-radius: 16px;
+}
+
+.member-avatar {
+    border-radius: 13px;
+}
+
+#savedGroupsList > div {
+    border-radius: 16px;
+}
+
+#savedGroupsList button {
+    border-radius: 10px;
+}
+
+.leave-group-btn {
+    border-radius: 11px;
+}
+
+.footer {
+    padding-top: 24px;
+}
+
+@media (max-width: 700px) {
+    .page {
+        width: calc(100% - 20px);
+        margin-top: 18px;
+    }
+
+    .setup-card {
+        padding: 25px 17px;
+        border-radius: 23px;
+    }
+
+    .hero-title h1 {
+        letter-spacing: -1.5px;
+    }
+
+    .room-top {
+        border-radius: 20px;
+    }
+
+    .map-wrapper {
+        border-radius: 19px;
+    }
+
+    .map-header {
+        padding: 10px 12px;
+    }
+}
+
