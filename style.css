@@ -961,3 +961,79 @@ body:not(.dark) .switch-panel {
         height: 420px !important;
     }
 }
+
+/* LIVE GPS — XARITANI KATTA VA TO‘LIQ KO‘RSATISH */
+#roomCard {
+    width: 100%;
+    max-width: none;
+}
+
+.tracking-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 300px !important;
+    gap: 22px !important;
+    width: 100% !important;
+    align-items: stretch !important;
+}
+
+.tracking-main {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    width: 100%;
+    min-width: 0;
+}
+
+.tracking-main .status-grid {
+    width: 100%;
+}
+
+.tracking-main .map-wrapper {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+}
+
+.tracking-main .map-container {
+    position: relative !important;
+    width: 100% !important;
+    height:  min(75vh, 760px) !important;
+    min-height: 550px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}
+
+.tracking-main #map,
+.tracking-main .map {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-width: none !important;
+}
+
+.tracking-sidebar {
+    width: 100%;
+    min-width: 0;
+    align-self: stretch;
+}
+
+@media (max-width: 900px) {
+    .tracking-layout {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .tracking-main .map-container {
+        height: 65vh !important;
+        min-height: 450px !important;
+    }
+}
+
+@media (max-width: 600px) {
+    .tracking-main .map-container {
+        height: 55vh !important;
+        min-height: 350px !important;
+    }
+}
