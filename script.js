@@ -1,19 +1,10 @@
 "use strict";
 
 /* =========================================================
-   SERVER
+   LIVE GPS — CLIENT
    ========================================================= */
 
-const SERVER_URL =
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1"
-        ? `${window.location.protocol}//${window.location.host}`
-        : window.location.origin;
-
-
-/* =========================================================
-   STORAGE KEYS
-   ========================================================= */
+/* ---------- STORAGE KEYS (o'zgarmagan) ---------- */
 
 const SAVED_GROUPS_KEY = "gps-saved-groups";
 const USER_ID_KEY = "gps-user-id";
@@ -22,78 +13,37 @@ const ROOM_CODE_KEY = "gps-room-code";
 const LAST_ROOM_KEY = "gps-last-room-code";
 const THEME_KEY = "gps-theme";
 
+const MAX_SAVED_GROUPS = 20;
+const LOCATION_MIN_INTERVAL = 1500;
+const DEFAULT_CENTER = [69.2401, 41.2995]; // [lng, lat] — Toshkent
 
-/* =========================================================
-   STATE
-   ========================================================= */
-
-let ws = null;
-
-let currentUserId =
-    localStorage.getItem(USER_ID_KEY) || null;
-
-let currentUserName =
-    localStorage.getItem(USER_NAME_KEY) || "";
-
-let currentRoomCode =
-    normalizeRoomCode(
-        localStorage.getItem(ROOM_CODE_KEY) ||
-        localStorage.getItem(LAST_ROOM_KEY) ||
-        ""
-    );
-
-let pendingAction = null;
-
-/*
- * Bitta WebSocket ulanishida
- * create/join faqat bir marta yuboriladi.
- */
-let pendingActionSent = false;
-
-let reconnectTimer = null;
-let reconnectAttempts = 0;
-
-let manuallyClosed = false;
-
-let watchId = null;
-
-let myLatitude = null;
-let myLongitude = null;
-let myAccuracy = null;
-
-let map = null;
-let mapInitialized = false;
-
-let myMarker = null;
-
-const userMarkers = new Map();
-
-let users = [];
-
-let savedGroups = [];
-
-let eventsInitialized = false;
-
-let firstLocationCentered = false;
-
-let switchPendingAction = null;
-let switchFallbackTimer = null;
+const store = {
+    get(key, fallback = null) {
+        try {
+            const value = localStorage.getItem(key);
+            return value === null ? fallback : value;
+        } catch (e) {
+            return fallback;
+        }
+    },
+    set(key, value) {
+        try { localStorage.setItem(key, value); } catch (e) { /* ignore */ }
+    },
+    remove(key) {
+        try { localStorage.removeItem(key); } catch (e) { /* ignore */ }
+    }
+};
 
 
 /* =========================================================
-   ELEMENT
+   HELPERS
    ========================================================= */
 
-const $ = id =>
-    document.getElementById(id);
+const $ = id => document.getElementById(id);
 
-
-/* =========================================================
-   ROOM CODE
-   ========================================================= */
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function normalizeRoomCode(value) {
-
     return String(value || "")
         .trim()
         .toUpperCase()
@@ -101,25 +51,15 @@ function normalizeRoomCode(value) {
         .slice(0, 6);
 }
 
+const isValidRoomCode = code => /^[A-Z0-9]{6}$/.test(code);
 
-/* =========================================================
-   USER ID VALIDATION
-   ========================================================= */
+const isValidUserId = value => /^[a-f0-9]{16}$/i.test(String(value || ""));
 
-function isValidUserId(value) {
-
-    return /^[a-f0-9]{16}$/i.test(
-        String(value || "")
-    );
+function cleanName(value) {
+    return String(value || "").trim().slice(0, 100);
 }
 
-
-/* =========================================================
-   HTML ESCAPE
-   ========================================================= */
-
 function escapeHtml(value) {
-
     return String(value ?? "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -128,120 +68,281 @@ function escapeHtml(value) {
         .replace(/'/g, "&#039;");
 }
 
+/* null / "" / undefined — Number() orqali 0 bo'lib ketmasligi uchun */
+function toCoord(value) {
+    if (value === null || value === undefined || value === "") return NaN;
+    return Number(value);
+}
+
+function validCoords(lat, lng) {
+    lat = toCoord(lat);
+    lng = toCoord(lng);
+
+    return (
+        Number.isFinite(lat) &&
+        Number.isFinite(lng) &&
+        Math.abs(lat) <= 90 &&
+        Math.abs(lng) <= 180 &&
+        !(lat === 0 && lng === 0)
+    );
+}
+
+function hueFromString(text) {
+    let hash = 0;
+    const value = String(text || "?");
+
+    for (let i = 0; i < value.length; i++) {
+        hash = (hash * 31 + value.charCodeAt(i)) % 360;
+    }
+
+    return hash;
+}
+
+function userGradient(name) {
+    const hue = hueFromString(name);
+
+    return `linear-gradient(135deg,hsl(${hue} 72% 54%),hsl(${(hue + 40) % 360} 72% 44%))`;
+}
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const toRad = deg => deg * Math.PI / 180;
+
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) ** 2;
+
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDistance(meters) {
+    return meters < 1000
+        ? `${Math.round(meters)} m`
+        : `${(meters / 1000).toFixed(1)} km`;
+}
+
+function formatAccuracy(accuracy) {
+    if (!Number.isFinite(accuracy)) return "aniqlik noma’lum";
+
+    return accuracy >= 1000
+        ? `±${(accuracy / 1000).toFixed(1)} km`
+        : `±${Math.round(accuracy)} m`;
+}
+
+
+/* =========================================================
+   STATE
+   ========================================================= */
+
+let ws = null;
+
+let currentUserId = store.get(USER_ID_KEY);
+let currentUserName = store.get(USER_NAME_KEY, "");
+
+let currentRoomCode = normalizeRoomCode(
+    store.get(ROOM_CODE_KEY) || store.get(LAST_ROOM_KEY) || ""
+);
+
+let pendingAction = null;
+let pendingActionSent = false;
+
+let reconnectTimer = null;
+let reconnectAttempts = 0;
+let manuallyClosed = false;
+
+let watchId = null;
+let myLatitude = null;
+let myLongitude = null;
+let myAccuracy = null;
+
+let lastSentAt = 0;
+let sendTimer = null;
+
+let map = null;
+let schemeLayer = null;
+let mapInitialized = false;
+let mapPromise = null;
+let firstLocationCentered = false;
+
+let myMarker = null; // { marker, element }
+const userMarkers = new Map(); // id -> { marker, element }
+
+let users = [];
+let savedGroups = [];
+
+let switchPendingAction = null;
+let switchFallbackTimer = null;
+
+let eventsInitialized = false;
+
+
+/* =========================================================
+   STATUS & ERRORS
+   ========================================================= */
+
+const STATUS_CLASSES = ["online", "offline", "connecting", "error"];
+
+function applyStatusClass(element, type) {
+    if (!element) return;
+
+    element.classList.remove(...STATUS_CLASSES);
+
+    if (type) element.classList.add(type);
+}
+
+function setConnectionStatus(text, type = "") {
+    const status = $("connectionStatus");
+
+    if (status) {
+        status.textContent = text;
+        applyStatusClass(status, type);
+    }
+
+    applyStatusClass($("connectionPill"), type);
+
+    const pillText = $("connectionText");
+
+    if (pillText) {
+        pillText.textContent = {
+            online: "Online",
+            offline: "Offline",
+            connecting: "Ulanmoqda...",
+            error: "Xatolik"
+        }[type] || text;
+    }
+}
+
+function setLocationStatus(text, type = "") {
+    const element = $("locationStatus");
+
+    if (!element) return;
+
+    element.textContent = text;
+    applyStatusClass(element, type);
+}
+
+function showError(id, message) {
+    const element = $(id);
+
+    if (!element) {
+        console.error(message);
+        return;
+    }
+
+    element.textContent = message;
+    element.classList.add("show");
+}
+
+function clearError(id) {
+    const element = $(id);
+
+    if (!element) return;
+
+    element.textContent = "";
+    element.classList.remove("show");
+}
+
+const showSetupError = message => showError("setupError", message);
+const showRoomError = message => showError("roomError", message);
+
+function clearErrors() {
+    clearError("setupError");
+    clearError("roomError");
+}
+
+
+/* =========================================================
+   VIEWS
+   ========================================================= */
+
+function showSetup() {
+    $("setupCard")?.classList.remove("hidden");
+    $("roomCard")?.classList.add("hidden");
+
+    clearError("roomError");
+}
+
+function showRoom() {
+    $("setupCard")?.classList.add("hidden");
+    $("roomCard")?.classList.remove("hidden");
+
+    clearError("setupError");
+
+    /* Xona ko'ringandan keyin xarita yaratiladi */
+    requestAnimationFrame(() => initMap());
+}
+
+function updateRoomCodeUI(code) {
+    const normalized = normalizeRoomCode(code);
+
+    const current = $("currentRoomCode");
+
+    if (current) current.textContent = normalized || "------";
+
+    const input = $("roomCode");
+
+    if (input && normalized) input.value = normalized;
+
+    const switchInput = $("switchRoomInput");
+
+    if (switchInput) switchInput.value = "";
+}
+
 
 /* =========================================================
    SAVED GROUPS
    ========================================================= */
 
 function loadSavedGroups() {
-
     try {
+        const parsed = JSON.parse(store.get(SAVED_GROUPS_KEY, "[]"));
 
-        const data =
-            localStorage.getItem(
-                SAVED_GROUPS_KEY
-            );
-
-        const parsed =
-            JSON.parse(
-                data || "[]"
-            );
-
-        savedGroups =
-            Array.isArray(parsed)
-                ? parsed
-                : [];
-
+        savedGroups = Array.isArray(parsed)
+            ? parsed.filter(group => group && isValidRoomCode(normalizeRoomCode(group.code)))
+            : [];
     } catch (error) {
-
-        console.error(
-            "Saved groups error:",
-            error
-        );
-
+        console.error("Saved groups error:", error);
         savedGroups = [];
     }
 
     renderSavedGroups();
 }
 
-
 function saveSavedGroups() {
-
-    try {
-
-        localStorage.setItem(
-            SAVED_GROUPS_KEY,
-            JSON.stringify(savedGroups)
-        );
-
-    } catch (error) {
-
-        console.error(
-            "Saved groups save error:",
-            error
-        );
-    }
+    store.set(SAVED_GROUPS_KEY, JSON.stringify(savedGroups));
 }
 
+function addSavedGroup(roomCode, name) {
+    const code = normalizeRoomCode(roomCode);
 
-function addSavedGroup(
-    roomCode,
-    name
-) {
+    if (!isValidRoomCode(code)) return;
 
-    roomCode =
-        normalizeRoomCode(roomCode);
+    const existing = savedGroups.find(group => group.code === code);
 
-    if (
-        !/^[A-Z0-9]{6}$/.test(roomCode)
-    ) {
-        return;
-    }
-
-    name =
-        String(
-            name || "Guruh"
-        )
+    const finalName =
+        String(name || existing?.name || "Guruh")
             .trim()
-            .slice(0, 100);
+            .slice(0, 100) || "Guruh";
 
-    savedGroups =
-        savedGroups.filter(
-            group =>
-                group.code !== roomCode
-        );
-
-    savedGroups.unshift({
-
-        code: roomCode,
-
-        name:
-            name || "Guruh",
-
-        savedAt:
-            Date.now()
-    });
-
-    if (
-        savedGroups.length > 20
-    ) {
-
-        savedGroups =
-            savedGroups.slice(0, 20);
-    }
+    savedGroups = [
+        { code, name: finalName, savedAt: Date.now() },
+        ...savedGroups.filter(group => group.code !== code)
+    ].slice(0, MAX_SAVED_GROUPS);
 
     saveSavedGroups();
     renderSavedGroups();
 }
 
-
 function removeSavedGroup(roomCode) {
     const code = normalizeRoomCode(roomCode);
 
-    if (!/^[A-Z0-9]{6}$/.test(code)) return;
+    if (!isValidRoomCode(code)) return;
 
-    // Serverga o'z yozuvimizni o'chirish so'rovini yuboramiz.
     if (ws && ws.readyState === WebSocket.OPEN && currentUserId) {
         ws.send(JSON.stringify({
             type: "delete-saved-group",
@@ -250,7 +351,6 @@ function removeSavedGroup(roomCode) {
         }));
     }
 
-    // Saqlangan guruhlar ro'yxatidan olib tashlash.
     savedGroups = savedGroups.filter(
         group => normalizeRoomCode(group.code) !== code
     );
@@ -258,962 +358,271 @@ function removeSavedGroup(roomCode) {
     saveSavedGroups();
     renderSavedGroups();
 
-    // O'chirilgan guruh ochiq bo'lsa, shu sessiyani yakunlaymiz.
+    if (normalizeRoomCode(store.get(LAST_ROOM_KEY)) === code) {
+        store.remove(LAST_ROOM_KEY);
+    }
+
     if (currentRoomCode === code) {
-        currentRoomCode = "";
-
-        localStorage.removeItem(ROOM_CODE_KEY);
-
-        if (normalizeRoomCode(localStorage.getItem(LAST_ROOM_KEY)) === code) {
-            localStorage.removeItem(LAST_ROOM_KEY);
-        }
-
-        pendingAction = null;
-        pendingActionSent = false;
-        switchPendingAction = null;
-
-        if (switchFallbackTimer) {
-            clearTimeout(switchFallbackTimer);
-            switchFallbackTimer = null;
-        }
-
-        stopLocationTracking();
-
-        users = [];
-        renderUsers();
-        clearMapMarkers();
-
-        showSetup();
+        cancelSwitch();
+        resetRoomState(true);
     }
 }
 
-
 function renderSavedGroups() {
+    const list = $("savedGroupsList");
+    const count = $("savedGroupsCount");
 
-    const section =
-        $("savedGroupsSection");
+    if (count) count.textContent = String(savedGroups.length);
 
-    const list =
-        $("savedGroupsList");
+    if (!list) return;
 
-    const count =
-        $("savedGroupsCount");
-
-
-    if (count) {
-
-        count.textContent =
-            String(savedGroups.length);
-    }
-
-
-    if (!list) {
-        return;
-    }
-
-
-    list.innerHTML = "";
-
-
-    if (
-        savedGroups.length === 0
-    ) {
-
+    if (savedGroups.length === 0) {
         list.innerHTML = `
-            <div class="saved-empty">
-                Saqlangan guruhlar yo‘q.
+            <div class="empty-members">
+                Hozircha saqlangan guruh yo‘q.
             </div>
         `;
-
-        if (section) {
-            section.style.display = "";
-        }
-
         return;
     }
 
+    list.innerHTML = savedGroups.map(group => `
+        <div class="saved-group-item" data-code="${escapeHtml(group.code)}">
 
-    if (section) {
-        section.style.display = "";
-    }
-
-
-    savedGroups.forEach(group => {
-
-        const item =
-            document.createElement("div");
-
-        item.className =
-            "saved-group-item";
-
-
-        item.innerHTML = `
             <div class="saved-group-info">
-
-                <strong>
-                    ${escapeHtml(
-                        group.name || "Guruh"
-                    )}
-                </strong>
-
-                <span>
-                    ${escapeHtml(
-                        group.code
-                    )}
-                </span>
-
+                <span class="saved-group-name">${escapeHtml(group.name || "Guruh")}</span>
+                <strong class="saved-group-code">${escapeHtml(group.code)}</strong>
             </div>
 
             <div class="saved-group-actions">
-
-                <button
-                    type="button"
-                    class="saved-join-btn"
-                >
+                <button type="button" class="saved-join-btn" data-action="join">
                     Kirish
                 </button>
 
                 <button
                     type="button"
                     class="saved-delete-btn"
+                    data-action="delete"
                     title="O‘chirish"
-                >
-                    ×
-                </button>
-
+                    aria-label="Guruhni o‘chirish"
+                >×</button>
             </div>
-        `;
 
+        </div>
+    `).join("");
+}
 
-        const joinButton =
-            item.querySelector(
-                ".saved-join-btn"
-            );
+function onSavedGroupsClick(event) {
+    const button = event.target.closest("button[data-action]");
 
+    if (!button) return;
 
-        const deleteButton =
-            item.querySelector(
-                ".saved-delete-btn"
-            );
+    const item = button.closest("[data-code]");
 
+    if (!item) return;
 
-        if (joinButton) {
+    const code = item.dataset.code;
 
-            joinButton.addEventListener(
-                "click",
-                () => {
-
-                    const input =
-                        $("roomCode");
-
-                    if (input) {
-                        input.value =
-                            group.code;
-                    }
-
-                    joinSavedGroup(
-                        group.code,
-                        group.name
-                    );
-                }
-            );
-        }
-
-
-        if (deleteButton) {
-
-            deleteButton.addEventListener(
-                "click",
-                () => {
-
-                    removeSavedGroup(
-                        group.code
-                    );
-                }
-            );
-        }
-
-
-        list.appendChild(item);
-    });
+    if (button.dataset.action === "join") {
+        joinByCode(code, getInputName());
+    } else if (button.dataset.action === "delete") {
+        removeSavedGroup(code);
+    }
 }
 
 
 /* =========================================================
-   JOIN SAVED GROUP
+   ROOM STATE
    ========================================================= */
 
-function joinSavedGroup(
-    code,
-    name
-) {
+function persistRoom(code) {
+    currentRoomCode = code;
 
-    const normalized =
-        normalizeRoomCode(code);
+    store.set(ROOM_CODE_KEY, code);
+    store.set(LAST_ROOM_KEY, code);
+}
 
+function persistName(name) {
+    currentUserName = name;
 
-    if (
-        !/^[A-Z0-9]{6}$/.test(normalized)
-    ) {
+    store.set(USER_NAME_KEY, name);
+}
 
-        showSetupError(
-            "Guruh kodi noto‘g‘ri."
-        );
+function setUserId(id) {
+    currentUserId = String(id);
 
-        return;
-    }
+    store.set(USER_ID_KEY, currentUserId);
+}
 
+/* Xonadan lokal chiqish. keepUI=false bo'lsa, setup ko'rsatilmaydi. */
+function resetRoomState(showUI = true) {
+    currentRoomCode = "";
 
-    const nameInput =
-        $("userName");
+    store.remove(ROOM_CODE_KEY);
 
-
-    const finalName =
-        String(
-            name ||
-            currentUserName ||
-            nameInput?.value ||
-            ""
-        )
-            .trim()
-            .slice(0, 100);
-
-
-    if (!finalName) {
-
-        showSetupError(
-            "Avval ismingizni kiriting."
-        );
-
-        return;
-    }
-
-
-    currentUserName =
-        finalName;
-
-    currentRoomCode =
-        normalized;
-
-
-    localStorage.setItem(
-        USER_NAME_KEY,
-        finalName
-    );
-
-    localStorage.setItem(
-        ROOM_CODE_KEY,
-        normalized
-    );
-
-    localStorage.setItem(
-        LAST_ROOM_KEY,
-        normalized
-    );
-
-
-    if (nameInput) {
-        nameInput.value =
-            finalName;
-    }
-
-
-    const roomInput =
-        $("roomCode");
-
-    if (roomInput) {
-        roomInput.value =
-            normalized;
-    }
-
-
-    clearErrors();
-
-
-    pendingAction = {
-
-        type: "join",
-
-        roomCode:
-            normalized,
-
-        name:
-            finalName
-    };
-
-
+    pendingAction = null;
     pendingActionSent = false;
 
+    stopLocationTracking();
+
+    users = [];
+
+    clearMapMarkers();
+    renderUsers();
+
+    if (showUI) showSetup();
+}
+
+function startAction(action) {
+    pendingAction = action;
+    pendingActionSent = false;
 
     connectWebSocket();
 }
 
+function cancelSwitch() {
+    switchPendingAction = null;
 
-/* =========================================================
-   STATUS
-   ========================================================= */
-
-function setConnectionStatus(
-    text,
-    type = ""
-) {
-
-    const element =
-        $("connectionStatus");
-
-
-    if (element) {
-
-        element.textContent =
-            text;
-
-        element.classList.remove(
-            "online",
-            "offline",
-            "connecting",
-            "error"
-        );
-
-        if (type) {
-            element.classList.add(type);
-        }
-    }
-
-
-    const pill =
-        $("connectionPill");
-
-    const pillText =
-        $("connectionText");
-
-
-    if (pill) {
-
-        pill.classList.remove(
-            "online",
-            "offline",
-            "connecting",
-            "error"
-        );
-
-        if (type) {
-            pill.classList.add(type);
-        }
-    }
-
-
-    if (pillText) {
-
-        let topText =
-            text;
-
-        if (type === "online") {
-            topText = "Online";
-        }
-
-        if (type === "offline") {
-            topText = "Offline";
-        }
-
-        if (type === "connecting") {
-            topText = "Ulanmoqda...";
-        }
-
-        pillText.textContent =
-            topText;
-    }
-}
-
-
-function setLocationStatus(
-    text,
-    type = ""
-) {
-
-    const element =
-        $("locationStatus");
-
-
-    if (!element) {
-        return;
-    }
-
-
-    element.textContent =
-        text;
-
-
-    element.classList.remove(
-        "online",
-        "offline",
-        "connecting",
-        "error"
-    );
-
-
-    if (type) {
-
-        element.classList.add(
-            type
-        );
+    if (switchFallbackTimer) {
+        clearTimeout(switchFallbackTimer);
+        switchFallbackTimer = null;
     }
 }
 
 
 /* =========================================================
-   ERRORS
-   ========================================================= */
-
-function showSetupError(
-    message
-) {
-
-    const element =
-        $("setupError");
-
-
-    if (element) {
-
-        element.textContent =
-            message;
-
-        element.style.display =
-            "block";
-
-        return;
-    }
-
-
-    console.error(
-        message
-    );
-}
-
-
-function showRoomError(
-    message
-) {
-
-    const element =
-        $("roomError");
-
-
-    if (element) {
-
-        element.textContent =
-            message;
-
-        element.style.display =
-            "block";
-
-        return;
-    }
-
-
-    console.error(
-        message
-    );
-}
-
-
-function clearSetupError() {
-
-    const element =
-        $("setupError");
-
-
-    if (!element) {
-        return;
-    }
-
-
-    element.textContent =
-        "";
-
-    element.style.display =
-        "none";
-}
-
-
-function clearRoomError() {
-
-    const element =
-        $("roomError");
-
-
-    if (!element) {
-        return;
-    }
-
-
-    element.textContent =
-        "";
-
-    element.style.display =
-        "none";
-}
-
-
-function clearErrors() {
-
-    clearSetupError();
-    clearRoomError();
-}
-
-
-/* =========================================================
-   UI
-   ========================================================= */
-
-function showSetup() {
-
-    const setup =
-        $("setupCard");
-
-    const room =
-        $("roomCard");
-
-
-    if (setup) {
-
-        setup.classList.remove("hidden");
-        setup.style.display = "";
-    }
-
-
-    if (room) {
-
-        room.classList.add("hidden");
-        room.style.display = "none";
-    }
-
-
-    clearRoomError();
-}
-
-
-function showRoom() {
-
-    const setup =
-        $("setupCard");
-
-    const room =
-        $("roomCard");
-
-
-    if (setup) {
-
-        setup.classList.add("hidden");
-        setup.style.display = "none";
-    }
-
-
-    if (room) {
-
-        room.classList.remove("hidden");
-        room.style.display = "";
-    }
-
-
-    clearSetupError();
-
-
-    /*
-     * Room endi ko‘rinadigan bo‘lgandan keyin
-     * mapni ishga tushiramiz.
-     */
-
-    requestAnimationFrame(() => {
-
-        setTimeout(() => {
-
-            initMap();
-
-        }, 80);
-
-    });
-}
-
-
-function updateRoomCodeUI(
-    code
-) {
-
-    const normalized =
-        normalizeRoomCode(code);
-
-
-    const current =
-        $("currentRoomCode");
-
-
-    if (current) {
-
-        current.textContent =
-            normalized || "------";
-    }
-
-
-    const input =
-        $("roomCode");
-
-
-    if (
-        input &&
-        normalized
-    ) {
-
-        input.value =
-            normalized;
-    }
-
-
-    const switchInput =
-        $("switchRoomInput");
-
-
-    if (
-        switchInput &&
-        normalized
-    ) {
-
-        switchInput.value =
-            "";
-    }
-}
-
-
-/* =========================================================
-   WEBSOCKET URL
+   WEBSOCKET
    ========================================================= */
 
 function getWebSocketUrl() {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 
-    const protocol =
-        window.location.protocol ===
-        "https:"
-            ? "wss:"
-            : "ws:";
-
-
-    return (
-        `${protocol}//${window.location.host}`
-    );
+    return `${protocol}//${window.location.host}`;
 }
 
-
-/* =========================================================
-   CONNECT WEBSOCKET
-   ========================================================= */
-
 function connectWebSocket() {
-
     manuallyClosed = false;
 
-
-    /*
-     * Socket ochiq bo‘lsa,
-     * mavjud actionni yuboramiz.
-     */
-
-    if (
-        ws &&
-        ws.readyState === WebSocket.OPEN
-    ) {
-
+    if (ws && ws.readyState === WebSocket.OPEN) {
         sendPendingAction();
-
         return;
     }
 
-
-    /*
-     * Socket ulanayotgan bo‘lsa,
-     * ikkinchi socket ochilmaydi.
-     */
-
-    if (
-        ws &&
-        ws.readyState === WebSocket.CONNECTING
-    ) {
-
-        return;
-    }
-
+    if (ws && ws.readyState === WebSocket.CONNECTING) return;
 
     pendingActionSent = false;
 
+    setConnectionStatus("Ulanmoqda...", "connecting");
 
-    setConnectionStatus(
-        "Ulanmoqda...",
-        "connecting"
-    );
-
+    let socket;
 
     try {
-
-        ws =
-            new WebSocket(
-                getWebSocketUrl()
-            );
-
+        socket = new WebSocket(getWebSocketUrl());
     } catch (error) {
+        console.error("WebSocket yaratish xatosi:", error);
 
-        console.error(
-            "WebSocket yaratish xatosi:",
-            error
-        );
-
-        setConnectionStatus(
-            "Ulanish xatosi",
-            "error"
-        );
-
+        setConnectionStatus("Ulanish xatosi", "error");
         scheduleReconnect();
 
         return;
     }
 
+    ws = socket;
 
-    ws.addEventListener(
-        "open",
-        () => {
+    socket.addEventListener("open", () => {
+        reconnectAttempts = 0;
 
-            reconnectAttempts = 0;
+        setConnectionStatus("Ulangan", "online");
 
+        /* Action serverdan "connected" kelgach yuboriladi. */
+    });
 
-            setConnectionStatus(
-                "Ulangan",
-                "online"
-            );
+    socket.addEventListener("message", handleServerMessage);
 
-            /*
-             * Action bu yerda yuborilmaydi.
-             *
-             * Server "connected" yuborgandan keyin
-             * sendPendingAction() ishlaydi.
-             */
-        }
-    );
+    socket.addEventListener("error", error => {
+        console.error("WebSocket error:", error);
 
+        setConnectionStatus("Ulanish xatosi", "error");
+    });
 
-    ws.addEventListener(
-        "message",
-        handleServerMessage
-    );
+    socket.addEventListener("close", () => {
+        /* Eski socketning close hodisasi yangisiga tegmasin */
+        if (ws !== socket) return;
 
+        pendingActionSent = false;
 
-    ws.addEventListener(
-        "error",
-        error => {
+        setConnectionStatus("Ulanish uzildi", "offline");
 
-            console.error(
-                "WebSocket error:",
-                error
-            );
-
-
-            setConnectionStatus(
-                "Ulanish xatosi",
-                "error"
-            );
-        }
-    );
-
-
-    ws.addEventListener(
-        "close",
-        () => {
-
-            pendingActionSent = false;
-
-
-            setConnectionStatus(
-                "Ulanish uzildi",
-                "offline"
-            );
-
-
-            if (!manuallyClosed) {
-
-                scheduleReconnect();
-            }
-        }
-    );
+        if (!manuallyClosed) scheduleReconnect();
+    });
 }
 
-
-/* =========================================================
-   RECONNECT
-   ========================================================= */
-
 function scheduleReconnect() {
-
-    if (manuallyClosed) {
-        return;
-    }
-
-
-    if (reconnectTimer) {
-        return;
-    }
-
+    if (manuallyClosed || reconnectTimer) return;
 
     reconnectAttempts++;
 
+    const delay = Math.min(
+        1000 * Math.pow(2, Math.min(reconnectAttempts - 1, 5)),
+        10000
+    );
 
-    const delay =
-        Math.min(
-
-            1000 *
-            Math.pow(
-                2,
-                Math.min(
-                    reconnectAttempts - 1,
-                    5
-                )
-            ),
-
-            10000
-        );
-
-
-    reconnectTimer =
-        setTimeout(
-            () => {
-
-                reconnectTimer = null;
-
-                connectWebSocket();
-
-            },
-            delay
-        );
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connectWebSocket();
+    }, delay);
 }
 
+function ensureConnected() {
+    if (manuallyClosed) return;
 
-/* =========================================================
-   SEND PENDING ACTION
-   ========================================================= */
+    if (
+        ws &&
+        (
+            ws.readyState === WebSocket.OPEN ||
+            ws.readyState === WebSocket.CONNECTING
+        )
+    ) {
+        return;
+    }
+
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+
+    connectWebSocket();
+}
 
 function sendPendingAction() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!pendingAction || pendingActionSent) return;
 
-    if (
-        !ws ||
-        ws.readyState !== WebSocket.OPEN
-    ) {
-        return;
-    }
+    const name = cleanName(pendingAction.name || currentUserName || "Noma'lum");
 
+    if (!name) return;
 
-    if (!pendingAction) {
-        return;
-    }
-
-
-    if (pendingActionSent) {
-        return;
-    }
-
-
-    /* =====================================================
-       CREATE
-       ===================================================== */
-
-    if (
-        pendingAction.type === "create"
-    ) {
-
-        const name =
-            String(
-                pendingAction.name ||
-                currentUserName ||
-                "Noma'lum"
-            )
-                .trim()
-                .slice(0, 100);
-
-
-        if (!name) {
-            return;
-        }
-
-
-        ws.send(
-            JSON.stringify({
-
-                type:
-                    "create-room",
-
-                userId:
-                    currentUserId || null,
-
-                name
-
-            })
-        );
-
+    if (pendingAction.type === "create") {
+        ws.send(JSON.stringify({
+            type: "create-room",
+            userId: currentUserId || null,
+            name
+        }));
 
         pendingActionSent = true;
-
         return;
     }
 
+    if (pendingAction.type === "join") {
+        const roomCode = normalizeRoomCode(pendingAction.roomCode);
 
-    /* =====================================================
-       JOIN
-       ===================================================== */
+        if (!isValidRoomCode(roomCode)) return;
 
-    if (
-        pendingAction.type === "join"
-    ) {
-
-        const roomCode =
-            normalizeRoomCode(
-                pendingAction.roomCode
-            );
-
-
-        const name =
-            String(
-                pendingAction.name ||
-                currentUserName ||
-                "Noma'lum"
-            )
-                .trim()
-                .slice(0, 100);
-
-
-        if (
-            !/^[A-Z0-9]{6}$/.test(
-                roomCode
-            )
-        ) {
-            return;
-        }
-
-
-        if (!name) {
-            return;
-        }
-
-
-        ws.send(
-            JSON.stringify({
-
-                type:
-                    "join-room",
-
-                roomCode,
-
-                userId:
-                    currentUserId || null,
-
-                name
-
-            })
-        );
-
+        ws.send(JSON.stringify({
+            type: "join-room",
+            roomCode,
+            userId: currentUserId || null,
+            name
+        }));
 
         pendingActionSent = true;
     }
@@ -1221,898 +630,398 @@ function sendPendingAction() {
 
 
 /* =========================================================
-   SERVER MESSAGE
+   SERVER MESSAGES
    ========================================================= */
 
 function handleServerMessage(event) {
-
-    let data = null;
-
+    let data;
 
     try {
-
-        data =
-            JSON.parse(
-                event.data
-            );
-
+        data = JSON.parse(event.data);
     } catch (error) {
-
-        console.error(
-            "Server JSON xatosi:",
-            event.data
-        );
-
+        console.error("Server JSON xatosi:", event.data);
         return;
     }
 
+    switch (data.type) {
 
-    console.log(
-        "SERVER:",
-        data
-    );
+        case "connected":
+            onConnected(data);
+            break;
 
+        case "room-created":
+            enterRoom(data, true);
+            break;
 
-    /* =====================================================
-       DELETED SAVED GROUP RESPONSE
-       ===================================================== */
+        case "joined-room":
+            enterRoom(data, false);
+            break;
 
-    if (
-        data.type === "removed-from-room" ||
-        data.type === "saved-group-removed"
-    ) {
-        const code = normalizeRoomCode(data.roomCode);
+        case "users":
+            users = Array.isArray(data.users) ? data.users : [];
 
-        if (data.type === "removed-from-room") {
-            // Boshqa qurilmadagi shu foydalanuvchi sessiyasi.
-            if (
-                String(data.userId) === String(currentUserId) &&
-                currentRoomCode === code
-            ) {
-                currentRoomCode = "";
+            renderUsers();
+            updateMapUsers();
+            break;
 
-                localStorage.removeItem(ROOM_CODE_KEY);
+        case "left-room":
+            onLeftRoom();
+            break;
 
-                if (
-                    normalizeRoomCode(localStorage.getItem(LAST_ROOM_KEY)) === code
-                ) {
-                    localStorage.removeItem(LAST_ROOM_KEY);
-                }
+        case "removed-from-room":
+            onRemovedFromRoom(data);
+            break;
 
-                pendingAction = null;
-                pendingActionSent = false;
+        case "error":
+            onServerError(data);
+            break;
 
-                stopLocationTracking();
-
-                users = [];
-                renderUsers();
-                clearMapMarkers();
-                showSetup();
-            }
-        }
-
-        return;
+        default:
+            break;
     }
-   
-    /* =====================================================
-       CONNECTED
-       ===================================================== */
+}
 
-  if (
-    data.type === "connected"
-) {
-
-    if (
-        !currentUserId &&
-        isValidUserId(data.userId)
-    ) {
-
-        currentUserId =
-            String(
-                data.userId
-            );
-
-        localStorage.setItem(
-            USER_ID_KEY,
-            currentUserId
-        );
+function onConnected(data) {
+    if (!currentUserId && isValidUserId(data.userId)) {
+        setUserId(data.userId);
     }
 
-
-    if (
-        !pendingAction &&
-        currentRoomCode &&
-        currentUserName
-    ) {
-
+    if (!pendingAction && currentRoomCode && currentUserName) {
         pendingAction = {
-
-            type:
-                "join",
-
-            roomCode:
-                currentRoomCode,
-
-            name:
-                currentUserName
+            type: "join",
+            roomCode: currentRoomCode,
+            name: currentUserName
         };
 
         pendingActionSent = false;
     }
 
-
     sendPendingAction();
-
-    return;
 }
 
-    /* =====================================================
-       ROOM CREATED
-       ===================================================== */
+function enterRoom(data, created) {
+    const code = normalizeRoomCode(data.roomCode);
 
-    if (
-        data.type === "room-created"
-    ) {
-
-        const code =
-            normalizeRoomCode(
-                data.roomCode
-            );
-
-
-        if (
-            data.userId &&
-            !currentUserId
-        ) {
-
-            currentUserId =
-                String(
-                    data.userId
-                );
-
-
-            localStorage.setItem(
-                USER_ID_KEY,
-                currentUserId
-            );
-        }
-
-
-        if (
-            !/^[A-Z0-9]{6}$/.test(code)
-        ) {
-
-            pendingAction = null;
-            pendingActionSent = false;
-
-            showSetupError(
-                "Server noto‘g‘ri guruh kodi yubordi."
-            );
-
-            return;
-        }
-
-
-        currentRoomCode =
-            code;
-
-
-        localStorage.setItem(
-            ROOM_CODE_KEY,
-            code
-        );
-
-        localStorage.setItem(
-            LAST_ROOM_KEY,
-            code
-        );
-
-
-        addSavedGroup(
-            code,
-            currentUserName ||
-            "Mening guruhim"
-        );
-
-
-        updateRoomCodeUI(code);
-
-
+    if (!isValidRoomCode(code)) {
         pendingAction = null;
         pendingActionSent = false;
 
-
-        users = [];
-
-
-        clearMapMarkers();
-
-
-        renderUsers();
-
-
-        showRoom();
-
-
-        clearErrors();
-
-
-        setConnectionStatus(
-            "Ulangan",
-            "online"
-        );
-
-
-        firstLocationCentered = false;
-
-
-        initMap();
-
-        startLocationTracking();
-
+        showSetup();
+        showSetupError("Server noto‘g‘ri guruh kodi yubordi.");
 
         return;
     }
 
+    if (data.userId && !currentUserId) setUserId(data.userId);
 
-    /* =====================================================
-       JOINED ROOM
-       ===================================================== */
+    persistRoom(code);
 
-    if (
-        data.type === "joined-room"
-    ) {
+    addSavedGroup(code, created ? "Mening guruhim" : "");
 
-        const code =
-            normalizeRoomCode(
-                data.roomCode
-            );
-
-
-        if (
-            !/^[A-Z0-9]{6}$/.test(code)
-        ) {
-
-            pendingAction = null;
-            pendingActionSent = false;
-
-            showSetupError(
-                "Server noto‘g‘ri guruh kodi yubordi."
-            );
-
-            showSetup();
-
-            return;
-        }
-
-
-        /*
-         * Server bergan ID faqat bizda
-         * umuman ID bo‘lmasa qabul qilinadi.
-         */
-
-        if (
-            data.userId &&
-            !currentUserId
-        ) {
-
-            currentUserId =
-                String(
-                    data.userId
-                );
-
-
-            localStorage.setItem(
-                USER_ID_KEY,
-                currentUserId
-            );
-        }
-
-
-        currentRoomCode =
-            code;
-
-
-        localStorage.setItem(
-            ROOM_CODE_KEY,
-            code
-        );
-
-        localStorage.setItem(
-            LAST_ROOM_KEY,
-            code
-        );
-
-
-        addSavedGroup(
-            code,
-            currentUserName ||
-            "Guruh"
-        );
-
-
-        updateRoomCodeUI(code);
-
-
-        pendingAction = null;
-        pendingActionSent = false;
-
-
-        clearErrors();
-
-
-        showRoom();
-
-
-        setConnectionStatus(
-            "Ulangan",
-            "online"
-        );
-
-
-        firstLocationCentered = false;
-
-
-        initMap();
-
-        startLocationTracking();
-
-
-        return;
-    }
-
-
-    /* =====================================================
-       USERS
-       ===================================================== */
-
-    if (
-        data.type === "users"
-    ) {
-
-        users =
-            Array.isArray(
-                data.users
-            )
-                ? data.users
-                : [];
-
-
-        renderUsers();
-
-
-        updateMapUsers();
-
-
-        return;
-    }
-
-
-    /* =====================================================
-       ERROR
-       ===================================================== */
-
-    if (
-        data.type === "error"
-    ) {
-
-        console.error(
-            "SERVER ERROR:",
-            data.message
-        );
-
-
-        const message =
-            data.message ||
-            "Xatolik yuz berdi.";
-
-
-        pendingAction = null;
-        pendingActionSent = false;
-
-
-        /*
-         * Agar xona mavjud bo‘lmasa,
-         * eski saqlangan xona avtomatik qayta-qayta
-         * join bo‘lishining oldini olamiz.
-         */
-
-       if (
-    message.includes(
-        "Bunday guruh topilmadi"
-    )
-) {
-
-    /*
-     * MUHIM:
-     *
-     * Saqlangan guruhni o‘CHIRMAYMIZ.
-     *
-     * Render uxlab qolishi yoki server qayta
-     * ishga tushishi sababli vaqtinchalik xato
-     * chiqsa ham localStorage'dagi guruh saqlanadi.
-     */
+    updateRoomCodeUI(code);
 
     pendingAction = null;
     pendingActionSent = false;
 
-    showSetup();
+    if (created) users = [];
 
-    showSetupError(
-        "Guruhga hozircha ulanib bo‘lmadi. Saqlangan guruh o‘chirilmagan. Keyinroq qayta urinib ko‘ring."
-    );
+    clearMapMarkers();
+    renderUsers();
 
-    /*
-     * ROOM_CODE va LAST_ROOM_KEY ham saqlanib qoladi.
-     */
+    firstLocationCentered = false;
 
-    return;
+    clearErrors();
+    showRoom();
+
+    setConnectionStatus("Ulangan", "online");
+
+    startLocationTracking();
+    sendLocation(true);
+
+    initMap();
 }
- 
-    }       
-    /* =====================================================
-       LEFT ROOM
-       ===================================================== */
 
+function onLeftRoom() {
+    const switching = !!switchPendingAction;
+
+    /* LAST_ROOM_KEY saqlanadi — keyin qayta kirish mumkin */
+    resetRoomState(!switching);
+
+    setConnectionStatus("Ulangan", "online");
+
+    if (switching) finishSwitch();
+}
+
+function onRemovedFromRoom(data) {
+    const code = normalizeRoomCode(data.roomCode);
+
+    /* Boshqa qurilmadan shu foydalanuvchi o'chirilgan */
     if (
-        data.type === "left-room"
+        String(data.userId) === String(currentUserId) &&
+        currentRoomCode === code
     ) {
-
-        /*
-         * Muhim:
-         *
-         * ROOM CODE'NI O'CHIRMAYMIZ.
-         *
-         * Chunki foydalanuvchi keyinchalik saytga
-         * qayta kirganda shu guruhga avtomatik
-         * ulanadi.
-         */
-
-        currentRoomCode =
-            "";
-
-
-        localStorage.removeItem(
-            ROOM_CODE_KEY
-        );
-
-
-        /*
-         * Lekin oxirgi guruhni saqlab qolamiz.
-         */
-
-        /*
-         * LAST_ROOM_KEY allaqachon saqlangan.
-         */
-
-
-        pendingAction = null;
-        pendingActionSent = false;
-
-
-        stopLocationTracking();
-
-
-        users = [];
-
-
-        renderUsers();
-
-
-        clearMapMarkers();
-
-
-        showSetup();
-
-
-        setConnectionStatus(
-            "Ulangan",
-            "online"
-        );
-
-
-        if (switchPendingAction) {
-
-            const nextAction =
-                switchPendingAction;
-
-            switchPendingAction = null;
-
-
-            if (switchFallbackTimer) {
-
-                clearTimeout(
-                    switchFallbackTimer
-                );
-
-                switchFallbackTimer = null;
-            }
-
-
-            currentRoomCode =
-                normalizeRoomCode(
-                    nextAction.roomCode
-                );
-
-
-            localStorage.setItem(
-                ROOM_CODE_KEY,
-                currentRoomCode
-            );
-
-            localStorage.setItem(
-                LAST_ROOM_KEY,
-                currentRoomCode
-            );
-
-
-            pendingAction =
-                nextAction;
-
-
-            pendingActionSent = false;
-
-
-            connectWebSocket();
+        if (normalizeRoomCode(store.get(LAST_ROOM_KEY)) === code) {
+            store.remove(LAST_ROOM_KEY);
         }
 
+        resetRoomState(true);
+    }
+}
+
+function onServerError(data) {
+    const message = data.message || "Xatolik yuz berdi.";
+
+    console.error("SERVER ERROR:", message);
+
+    const wasPending = !!pendingAction;
+
+    pendingAction = null;
+    pendingActionSent = false;
+
+    cancelSwitch();
+
+    /* Guruh topilmasa ham saqlangan guruh o'chirilmaydi
+       (server uxlab qolgan yoki qayta ishga tushgan bo'lishi mumkin). */
+    if (message.includes("Bunday guruh topilmadi")) {
+        showSetup();
+
+        showSetupError(
+            "Guruhga hozircha ulanib bo‘lmadi. Saqlangan guruh o‘chirilmagan. Keyinroq qayta urinib ko‘ring."
+        );
 
         return;
+    }
+
+    const roomVisible = !$("roomCard")?.classList.contains("hidden");
+
+    if (roomVisible && !wasPending) {
+        showRoomError(message);
+    } else {
+        showSetup();
+        showSetupError(message);
     }
 }
 
 
 /* =========================================================
-   CREATE ROOM
+   FORM ACTIONS
    ========================================================= */
 
-function createRoom() {
+function getInputName() {
+    return cleanName($("userName")?.value || currentUserName);
+}
 
+function createRoom() {
     clearErrors();
 
-
-    const input =
-        $("userName");
-
-
-    const name =
-        String(
-            input?.value ||
-            ""
-        )
-            .trim()
-            .slice(0, 100);
-
+    const input = $("userName");
+    const name = cleanName(input?.value);
 
     if (!name) {
-
-        showSetupError(
-            "Avval ismingizni kiriting."
-        );
-
+        showSetupError("Avval ismingizni kiriting.");
         input?.focus();
-
         return;
     }
 
-
-    currentUserName =
-        name;
-
-
-    localStorage.setItem(
-        USER_NAME_KEY,
-        name
-    );
-
+    persistName(name);
 
     currentRoomCode = "";
 
-
-    pendingAction = {
-
-        type:
-            "create",
-
-        name
-    };
-
-
-    pendingActionSent = false;
-
-
-    connectWebSocket();
+    startAction({ type: "create", name });
 }
 
-
-/* =========================================================
-   JOIN ROOM
-   ========================================================= */
-
-function joinRoom() {
-
+function joinByCode(code, name) {
     clearErrors();
 
+    const roomCode = normalizeRoomCode(code);
 
-    const nameInput =
-        $("userName");
-
-    const codeInput =
-        $("roomCode");
-
-
-    const name =
-        String(
-            nameInput?.value ||
-            ""
-        )
-            .trim()
-            .slice(0, 100);
-
-
-    const roomCode =
-        normalizeRoomCode(
-            codeInput?.value
-        );
-
-
-    if (!name) {
-
-        showSetupError(
-            "Avval ismingizni kiriting."
-        );
-
-        nameInput?.focus();
-
+    if (!isValidRoomCode(roomCode)) {
+        showSetupError("Guruh kodi 6 ta harf yoki raqamdan iborat bo‘lishi kerak.");
+        $("roomCode")?.focus();
         return;
     }
 
+    const finalName = cleanName(name);
 
-    if (
-        !/^[A-Z0-9]{6}$/.test(
-            roomCode
-        )
-    ) {
-
-        showSetupError(
-            "Guruh kodi 6 ta harf yoki raqamdan iborat bo‘lishi kerak."
-        );
-
-        codeInput?.focus();
-
+    if (!finalName) {
+        showSetupError("Avval ismingizni kiriting.");
+        $("userName")?.focus();
         return;
     }
 
+    persistName(finalName);
+    persistRoom(roomCode);
 
-    currentUserName =
-        name;
+    const nameInput = $("userName");
+    const codeInput = $("roomCode");
 
+    if (nameInput) nameInput.value = finalName;
+    if (codeInput) codeInput.value = roomCode;
 
-    currentRoomCode =
-        roomCode;
-
-
-    localStorage.setItem(
-        USER_NAME_KEY,
-        name
-    );
-
-
-    localStorage.setItem(
-        ROOM_CODE_KEY,
-        roomCode
-    );
-
-
-    localStorage.setItem(
-        LAST_ROOM_KEY,
-        roomCode
-    );
-
-
-    if (codeInput) {
-        codeInput.value =
-            roomCode;
-    }
-
-
-    pendingAction = {
-
-        type:
-            "join",
-
-        roomCode,
-
-        name
-    };
-
-
-    pendingActionSent = false;
-
-
-    connectWebSocket();
+    startAction({ type: "join", roomCode, name: finalName });
 }
 
+function joinRoom() {
+    joinByCode($("roomCode")?.value, getInputName());
+}
 
-/* =========================================================
-   RESTORE SESSION
-   ========================================================= */
-
-function restoreSession() {
-
-    loadSavedGroups();
-
-
-    const nameInput =
-        $("userName");
-
-
-    if (
-        nameInput &&
-        currentUserName
-    ) {
-
-        nameInput.value =
-            currentUserName;
+function finishSwitch() {
+    if (switchFallbackTimer) {
+        clearTimeout(switchFallbackTimer);
+        switchFallbackTimer = null;
     }
 
+    if (!switchPendingAction) return;
 
-    /*
-     * Avval asosiy room code.
-     * Bo‘lmasa oxirgi guruhdan foydalanamiz.
-     */
+    const action = switchPendingAction;
 
-    const storedRoom =
-        normalizeRoomCode(
-            localStorage.getItem(
-                ROOM_CODE_KEY
-            ) ||
-            localStorage.getItem(
-                LAST_ROOM_KEY
-            ) ||
-            ""
-        );
+    switchPendingAction = null;
 
+    persistRoom(normalizeRoomCode(action.roomCode));
 
-    /*
-     * Eski versiyadagi room code bo‘lsa,
-     * yana asosiy storage'ga qaytaramiz.
-     */
+    startAction(action);
+}
 
-    if (
-        /^[A-Z0-9]{6}$/.test(storedRoom)
-    ) {
+function switchRoom() {
+    clearErrors();
 
-        currentRoomCode =
-            storedRoom;
+    const code = normalizeRoomCode($("switchRoomInput")?.value);
 
-
-        localStorage.setItem(
-            LAST_ROOM_KEY,
-            storedRoom
-        );
+    if (!isValidRoomCode(code)) {
+        showRoomError("Guruh kodi noto‘g‘ri.");
+        return;
     }
 
+    const name = currentUserName || getInputName();
 
-    /*
-     * F5 yoki bir necha soatdan keyin
-     * avtomatik qayta kirish.
-     */
+    if (!name) {
+        showRoomError("Avval ismingizni kiriting.");
+        return;
+    }
 
-    if (
-        currentRoomCode &&
-        currentUserName
-    ) {
+    if (normalizeRoomCode(currentRoomCode) === code) {
+        showRoomError("Siz hozir shu guruhdasiz.");
+        return;
+    }
 
-        pendingAction = {
+    const nextAction = { type: "join", roomCode: code, name };
 
-            type:
-                "join",
+    /* Avval eski guruhdan chiqamiz */
+    if (ws && ws.readyState === WebSocket.OPEN && currentRoomCode) {
+        switchPendingAction = nextAction;
 
-            roomCode:
-                currentRoomCode,
+        ws.send(JSON.stringify({ type: "leave-room" }));
 
-            name:
-                currentUserName
-        };
+        /* Server left-room'ni kechiktirsa, 1.5 soniyadan keyin baribir ulanamiz */
+        if (switchFallbackTimer) clearTimeout(switchFallbackTimer);
 
-
-        pendingActionSent = false;
-
-
-        setConnectionStatus(
-            "Guruhga ulanmoqda...",
-            "connecting"
-        );
-
-
-        connectWebSocket();
-
+        switchFallbackTimer = setTimeout(finishSwitch, 1500);
 
         return;
     }
 
+    persistRoom(code);
+
+    startAction(nextAction);
+}
+
+function leaveGroup() {
+    if (ws && ws.readyState === WebSocket.OPEN && currentRoomCode) {
+        try {
+            ws.send(JSON.stringify({ type: "leave-room" }));
+        } catch (error) {
+            console.error("Leave error:", error);
+        }
+    }
+
+    /* Oxirgi guruh LAST_ROOM_KEY'da qoladi */
+    if (currentRoomCode) store.set(LAST_ROOM_KEY, currentRoomCode);
+
+    cancelSwitch();
+    resetRoomState(true);
+
+    setConnectionStatus("Ulangan", "online");
+}
+
+function restoreSession() {
+    loadSavedGroups();
+
+    const nameInput = $("userName");
+
+    if (nameInput && currentUserName) nameInput.value = currentUserName;
+
+    const storedRoom = normalizeRoomCode(
+        store.get(ROOM_CODE_KEY) || store.get(LAST_ROOM_KEY) || ""
+    );
+
+    if (isValidRoomCode(storedRoom)) {
+        currentRoomCode = storedRoom;
+
+        store.set(LAST_ROOM_KEY, storedRoom);
+    }
+
+    if (currentRoomCode && currentUserName) {
+        setConnectionStatus("Guruhga ulanmoqda...", "connecting");
+
+        startAction({
+            type: "join",
+            roomCode: currentRoomCode,
+            name: currentUserName
+        });
+
+        return;
+    }
 
     showSetup();
 }
 
+function sendName() {
+    if (!ws || ws.readyState !== WebSocket.OPEN || !currentRoomCode) return;
+
+    const name = getInputName();
+
+    if (!name) return;
+
+    persistName(name);
+
+    ws.send(JSON.stringify({ type: "name", name }));
+}
+
+
 /* =========================================================
-   LOCATION — CHROME VA ANDROID UCHUN
+   LOCATION
    ========================================================= */
 
 function startLocationTracking() {
     if (!navigator.geolocation) {
-        setLocationStatus(
-            "Brauzer GPSni qo‘llamaydi",
-            "error"
-        );
+        setLocationStatus("Brauzer GPSni qo‘llamaydi", "error");
         return;
     }
 
     if (!window.isSecureContext) {
-        setLocationStatus(
-            "Sayt HTTPS orqali ochilishi kerak",
-            "error"
-        );
+        setLocationStatus("Sayt HTTPS orqali ochilishi kerak", "error");
         return;
     }
 
-    if (watchId !== null) {
-        return;
-    }
+    if (watchId !== null) return;
 
-    setLocationStatus(
-        "Joylashuv so‘ralmoqda...",
-        "connecting"
-    );
+    setLocationStatus("Joylashuv so‘ralmoqda...", "connecting");
 
     watchId = navigator.geolocation.watchPosition(
         position => {
-            const coords = position.coords;
+            const { latitude, longitude, accuracy } = position.coords;
 
-            const lat = Number(coords.latitude);
-            const lng = Number(coords.longitude);
-            const accuracy = Number(coords.accuracy);
-
-            console.log("CHROME GPS:", {
-                lat,
-                lng,
-                accuracy,
-                timestamp: position.timestamp
-            });
-
-            if (
-                !Number.isFinite(lat) ||
-                !Number.isFinite(lng) ||
-                lat < -90 ||
-                lat > 90 ||
-                lng < -180 ||
-                lng > 180
-            ) {
-                setLocationStatus(
-                    "GPS koordinatalari noto‘g‘ri",
-                    "error"
-                );
+            if (!validCoords(latitude, longitude)) {
+                setLocationStatus("GPS koordinatalari noto‘g‘ri", "error");
                 return;
             }
 
-            // GPS aniqligi 200 metrdan yomon bo‘lsa ham,
-            // haqiqiy koordinatani darhol rad etmaymiz.
-            myLatitude = lat;
-            myLongitude = lng;
-            myAccuracy = Number.isFinite(accuracy)
-                ? accuracy
-                : null;
-
-            const accuracyText =
-                Number.isFinite(accuracy)
-                    ? accuracy >= 1000
-                        ? `±${(accuracy / 1000).toFixed(1)} km`
-                        : `±${Math.round(accuracy)} m`
-                    : "aniqlik noma’lum";
+            myLatitude = Number(latitude);
+            myLongitude = Number(longitude);
+            myAccuracy = Number.isFinite(Number(accuracy)) ? Number(accuracy) : null;
 
             setLocationStatus(
-                `Joylashuv olindi (${accuracyText})`,
+                `Joylashuv olindi (${formatAccuracy(myAccuracy)})`,
                 "online"
             );
 
@@ -2122,525 +1031,173 @@ function startLocationTracking() {
         },
 
         error => {
-            console.error("CHROME GPS ERROR:", {
-                code: error.code,
-                message: error.message
-            });
+            console.error("GPS ERROR:", error.code, error.message);
 
             if (error.code === 1) {
-                setLocationStatus(
-                    "Chrome’da joylashuvga ruxsat bering",
-                    "error"
-                );
+                setLocationStatus("Brauzerda joylashuvga ruxsat bering", "error");
             } else if (error.code === 2) {
-                setLocationStatus(
-                    "Joylashuv topilmadi. GPSni tekshiring",
-                    "error"
-                );
+                setLocationStatus("Joylashuv topilmadi. GPSni tekshiring", "error");
             } else if (error.code === 3) {
-                setLocationStatus(
-                    "GPS sekin javob bermoqda. Kutilmoqda...",
-                    "connecting"
-                );
+                setLocationStatus("GPS sekin javob bermoqda. Kutilmoqda...", "connecting");
             } else {
-                setLocationStatus(
-                    "GPS xatosi: sahifani qayta oching",
-                    "error"
-                );
+                setLocationStatus("GPS xatosi: sahifani qayta oching", "error");
             }
         },
 
         {
             enableHighAccuracy: true,
-            maximumAge: 10000,
+            maximumAge: 5000,
             timeout: 60000
         }
     );
 }
 
 function stopLocationTracking() {
-
-    if (
-        watchId !== null
-    ) {
-
-        navigator.geolocation.clearWatch(
-            watchId
-        );
-
-
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
         watchId = null;
     }
 
+    if (sendTimer) {
+        clearTimeout(sendTimer);
+        sendTimer = null;
+    }
 
     myLatitude = null;
     myLongitude = null;
     myAccuracy = null;
 
+    setLocationStatus("Joylashuv o‘chirilgan", "offline");
+}
 
-    setLocationStatus(
-        "Joylashuv o‘chirilgan",
-        "offline"
-    );
+/* Serverga juda tez-tez yubormaslik (throttle) — oxirgi qiymat albatta yuboriladi */
+function sendLocation(force = false) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!currentRoomCode) return;
+    if (!validCoords(myLatitude, myLongitude)) return;
+
+    const wait = LOCATION_MIN_INTERVAL - (Date.now() - lastSentAt);
+
+    if (!force && wait > 0) {
+        if (!sendTimer) {
+            sendTimer = setTimeout(() => {
+                sendTimer = null;
+                sendLocation(true);
+            }, wait);
+        }
+
+        return;
+    }
+
+    lastSentAt = Date.now();
+
+    ws.send(JSON.stringify({
+        type: "location",
+        lat: myLatitude,
+        lng: myLongitude,
+        accuracy: Number.isFinite(myAccuracy) ? myAccuracy : null
+    }));
 }
 
 
 /* =========================================================
-   SEND LOCATION
-   ========================================================= */
-
-function sendLocation() {
-
-    if (
-        !ws ||
-        ws.readyState !== WebSocket.OPEN
-    ) {
-        return;
-    }
-
-
-    if (!currentRoomCode) {
-        return;
-    }
-
-
-    if (
-        !Number.isFinite(myLatitude) ||
-        !Number.isFinite(myLongitude)
-    ) {
-        return;
-    }
-
-
-    ws.send(
-        JSON.stringify({
-
-            type:
-                "location",
-
-            lat:
-                myLatitude,
-
-            lng:
-                myLongitude,
-
-            accuracy:
-                Number.isFinite(myAccuracy)
-                    ? myAccuracy
-                    : null
-        })
-    );
-}
-
-
-/* =========================================================
-   NAME
-   ========================================================= */
-
-function sendName() {
-
-    if (
-        !ws ||
-        ws.readyState !== WebSocket.OPEN
-    ) {
-        return;
-    }
-
-
-    if (!currentRoomCode) {
-        return;
-    }
-
-
-    const input =
-        $("userName");
-
-
-    const name =
-        String(
-            input?.value ||
-            currentUserName ||
-            ""
-        )
-            .trim()
-            .slice(0, 100);
-
-
-    if (!name) {
-        return;
-    }
-
-
-    currentUserName =
-        name;
-
-
-    localStorage.setItem(
-        USER_NAME_KEY,
-        name
-    );
-
-
-    ws.send(
-        JSON.stringify({
-
-            type:
-                "name",
-
-            name
-        })
-    );
-}
-
-
-/* =========================================================
-   USERS UI
+   MEMBERS UI
    ========================================================= */
 
 function renderUsers() {
-
     const list = $("membersList");
     const count = $("membersCount");
 
-    const onlineUsers = users.filter(
-        user => user.online
-    );
-
     if (count) {
-        count.textContent = String(
-            onlineUsers.length
-        );
+        count.textContent = String(users.filter(user => user.online).length);
     }
 
-    if (!list) {
-        return;
-    }
-
-    list.innerHTML = "";
+    if (!list) return;
 
     if (users.length === 0) {
-
         list.innerHTML = `
             <div class="empty-members">
                 Hozircha guruhda hech kim yo‘q.
             </div>
         `;
-
         return;
     }
 
-    users.forEach(user => {
+    const isMe = user => String(user.id) === String(currentUserId);
 
-        const item =
-            document.createElement("div");
+    /* Avval o'zim, keyin online, keyin offline */
+    const sorted = [...users].sort((a, b) => {
+        if (isMe(a) !== isMe(b)) return isMe(a) ? -1 : 1;
+        if (!!a.online !== !!b.online) return a.online ? -1 : 1;
 
-        item.className =
-            "member-item";
+        return String(a.name || "").localeCompare(String(b.name || ""));
+    });
 
-        const isMe =
-            String(user.id) ===
-            String(currentUserId);
+    list.innerHTML = sorted.map(user => {
+        const me = isMe(user);
+        const name = user.name || "Noma'lum";
+        const hasLocation = validCoords(user.lat, user.lng);
+        const hasMine = validCoords(myLatitude, myLongitude);
 
-        const onlineClass =
-            user.online
-                ? "online"
-                : "offline";
+        let text;
 
-        const statusText =
-            user.online
-                ? "Online"
-                : "Offline";
-
-        let distanceText = "";
-
-        if (isMe) {
-
-            distanceText = "Siz";
-
-        } else if (
-
-            Number.isFinite(Number(user.lat)) &&
-            Number.isFinite(Number(user.lng)) &&
-            Number.isFinite(myLatitude) &&
-            Number.isFinite(myLongitude)
-
-        ) {
-
-            const distance =
+        if (me) {
+            text = Number.isFinite(myAccuracy)
+                ? `Siz · ${formatAccuracy(myAccuracy)}`
+                : "Siz";
+        } else if (hasLocation && hasMine) {
+            const distance = formatDistance(
                 calculateDistance(
-
                     myLatitude,
                     myLongitude,
-
-                    Number(user.lat),
-                    Number(user.lng)
-                );
-
-            distanceText =
-                formatDistance(distance);
-        }
-
-        const hasLocation =
-            Number.isFinite(Number(user.lat)) &&
-            Number.isFinite(Number(user.lng));
-
-        const locationText =
-            !isMe &&
-            !user.online &&
-            hasLocation
-
-                ? "Oxirgi joylashuv saqlangan"
-
-                : (
-                    distanceText ||
-                    statusText
-                );
-
-        item.innerHTML = `
-            <div class="member-avatar">
-
-                ${escapeHtml(
-                    (
-                        user.name ||
-                        "N"
-                    )
-                        .charAt(0)
-                        .toUpperCase()
-                )}
-
-            </div>
-
-            <div class="member-info">
-
-                <strong>
-
-                    ${escapeHtml(
-                        user.name ||
-                        "Noma'lum"
-                    )}
-
-                    ${
-                        isMe
-                            ? " <small>(siz)</small>"
-                            : ""
-                    }
-
-                </strong>
-
-                <span>
-                    ${escapeHtml(
-                        locationText
-                    )}
-                </span>
-
-            </div>
-
-            <span
-                class="member-status ${onlineClass}"
-            >
-                ${statusText}
-            </span>
-        `;
-
-        /*
-         * A'zo ustiga bosilganda
-         * uning joylashuviga boramiz.
-         */
-           item.addEventListener(
-            "click",
-            () => {
-                centerMapOnUser(user);
-            }
-        );
-
-        list.appendChild(item);
-    });
-}
-
-   /* =========================================================
-   CENTER MAP ON USER
-   ========================================================= */
-
-function centerMapOnUser(user) {
-
-    if (!user) {
-        return;
-    }
-
-    const lat = Number(user.lat);
-    const lng = Number(user.lng);
-
-    if (
-        !Number.isFinite(lat) ||
-        !Number.isFinite(lng)
-    ) {
-
-        showRoomError(
-            "Bu foydalanuvchining joylashuvi hali mavjud emas."
-        );
-
-        setTimeout(() => {
-            clearRoomError();
-        }, 2500);
-
-        return;
-    }
-
-    /*
-     * Xarita hali tayyor bo‘lmasa,
-     * uni ishga tushiramiz.
-     */
-
-    if (!map) {
-
-        initMap();
-
-        setTimeout(() => {
-            centerMapOnUser(user);
-        }, 500);
-
-        return;
-    }
-
-    const position = [
-        lng,
-        lat
-    ];
-
-    try {
-
-        map.setLocation({
-            center: position,
-            zoom: 16,
-            duration: 650
-        });
-
-    } catch (error) {
-
-        console.error(
-            "User center error:",
-            error
-        );
-    }
-
-    /*
-     * Tanlangan marker nomini ochamiz.
-     */
-
-    const id =
-        String(user.id);
-
-    userMarkers.forEach(
-        (data) => {
-
-            data.element.classList.remove(
-                "gps-marker-selected"
+                    toCoord(user.lat),
+                    toCoord(user.lng)
+                )
             );
+
+            text = user.online ? distance : `${distance} · oxirgi joylashuv`;
+        } else if (hasLocation) {
+            text = user.online ? "Online" : "Oxirgi joylashuv saqlangan";
+        } else {
+            text = user.online ? "Joylashuv kutilmoqda..." : "Offline";
         }
-    );
 
-    const markerData =
-        userMarkers.get(id);
+        const avatarStyle = me ? "" : ` style="background:${userGradient(name)}"`;
 
-    if (markerData) {
+        return `
+            <div class="member${me ? " me" : ""}" data-id="${escapeHtml(user.id)}">
 
-        markerData.element.classList.add(
-            "gps-marker-selected"
-        );
-    }
+                <div class="member-avatar"${avatarStyle}>
+                    ${escapeHtml(name.charAt(0).toUpperCase())}
+                </div>
 
-    /*
-     * O‘zimizni tanlagan bo‘lsak,
-     * o‘z markerimiz nomini ochamiz.
-     */
+                <div class="member-info">
+                    <div class="member-name">
+                        ${escapeHtml(name)}
+                        ${me ? '<span class="you-badge">SIZ</span>' : ""}
+                    </div>
 
-    if (
-        id === String(currentUserId) &&
-        myMarker &&
-        myMarker.__element
-    ) {
+                    <div class="member-distance">${escapeHtml(text)}</div>
+                </div>
 
-        myMarker.__element.classList.add(
-            "gps-marker-selected"
-        );
-    }
-} 
- 
-/* =========================================================
-   DISTANCE
-   ========================================================= */
+                <span
+                    class="member-status ${user.online ? "online" : "offline"}"
+                    title="${user.online ? "Online" : "Offline"}"
+                ></span>
 
-function calculateDistance(
-    lat1,
-    lon1,
-    lat2,
-    lon2
-) {
-
-    const R =
-        6371000;
-
-
-    const toRad =
-        degrees =>
-            degrees *
-            Math.PI /
-            180;
-
-
-    const dLat =
-        toRad(
-            lat2 - lat1
-        );
-
-
-    const dLon =
-        toRad(
-            lon2 - lon1
-        );
-
-
-    const a =
-        Math.sin(dLat / 2) ** 2 +
-
-        Math.cos(
-            toRad(lat1)
-        ) *
-
-        Math.cos(
-            toRad(lat2)
-        ) *
-
-        Math.sin(dLon / 2) ** 2;
-
-
-    const c =
-        2 *
-        Math.atan2(
-            Math.sqrt(a),
-            Math.sqrt(1 - a)
-        );
-
-
-    return R * c;
+            </div>
+        `;
+    }).join("");
 }
 
+function onMembersClick(event) {
+    const item = event.target.closest(".member[data-id]");
 
-function formatDistance(
-    meters
-) {
+    if (!item) return;
 
-    if (
-        meters < 1000
-    ) {
+    const user = users.find(u => String(u.id) === item.dataset.id);
 
-        return `${Math.round(meters)} m`;
-    }
-
-
-    return `${(
-        meters / 1000
-    ).toFixed(1)} km`;
+    if (user) centerMapOnUser(user);
 }
 
 
@@ -2648,792 +1205,381 @@ function formatDistance(
    YANDEX MAP
    ========================================================= */
 
-async function initMap() {
+const getTheme = () =>
+    document.body.classList.contains("dark") ? "dark" : "light";
 
-    if (
-        mapInitialized
-    ) {
+async function waitForYmaps() {
+    for (let i = 0; i < 50; i++) {
+        if (typeof ymaps3 !== "undefined") return true;
 
-        /*
-         * Map allaqachon mavjud.
-         * Markerlarni yangilaymiz.
-         */
+        await sleep(300);
+    }
 
+    return false;
+}
+
+function initMap() {
+    if (mapInitialized) {
         updateMyMarker();
         updateMapUsers();
 
-        return;
+        return Promise.resolve();
     }
 
+    /* Bir vaqtda ikkita xarita yaratilmasligi uchun */
+    if (mapPromise) return mapPromise;
 
-    const mapElement =
-        $("map");
+    const mapElement = $("map");
 
+    if (!mapElement) return Promise.resolve();
 
-    if (!mapElement) {
-        return;
-    }
+    if ($("roomCard")?.classList.contains("hidden")) return Promise.resolve();
 
+    mapPromise = (async () => {
+        try {
+            if (!(await waitForYmaps())) {
+                showRoomError("Xarita yuklanmadi. Internetni tekshirib, sahifani yangilang.");
+                return;
+            }
 
-    /*
-     * Map hidden holatda bo‘lsa,
-     * hozir yaratmaymiz.
-     */
+            await ymaps3.ready;
 
-    const room =
-        $("roomCard");
+            const { YMap, YMapDefaultSchemeLayer, YMapDefaultFeaturesLayer } = ymaps3;
 
+            const hasMine = validCoords(myLatitude, myLongitude);
 
-    if (
-        room &&
-        room.classList.contains("hidden")
-    ) {
-        return;
-    }
+            map = new YMap(mapElement, {
+                location: {
+                    center: hasMine ? [myLongitude, myLatitude] : DEFAULT_CENTER,
+                    zoom: hasMine ? 15 : 12
+                }
+            });
 
+            schemeLayer = new YMapDefaultSchemeLayer({ theme: getTheme() });
 
-    if (
-        typeof ymaps3 ===
-        "undefined"
-    ) {
+            map.addChild(schemeLayer);
+            map.addChild(new YMapDefaultFeaturesLayer());
 
-        console.warn(
-            "Yandex Maps hali yuklanmagan. Qayta uriniladi."
-        );
+            mapInitialized = true;
 
+            /* Xarita fonini bosganda tanlangan nomlar yopiladi */
+            mapElement.addEventListener("click", clearSelectedMarkers);
 
-        setTimeout(
-            () => {
-                initMap();
-            },
-            700
-        );
+            updateMyMarker();
+            updateMapUsers();
+        } catch (error) {
+            console.error("Yandex map error:", error);
+        } finally {
+            mapPromise = null;
+        }
+    })();
 
+    return mapPromise;
+}
 
-        return;
-    }
-
+function setMapLocation(options) {
+    if (!map) return;
 
     try {
-
-        await ymaps3.ready;
-
-
-        const {
-
-            YMap,
-
-            YMapDefaultSchemeLayer,
-
-            YMapDefaultFeaturesLayer
-
-        } = ymaps3;
-
-
-        const center =
-            Number.isFinite(myLatitude) &&
-            Number.isFinite(myLongitude)
-
-                ? [
-                    myLongitude,
-                    myLatitude
-                ]
-
-                : [
-                    69.2401,
-                    41.2995
-                ];
-
-
-        map =
-            new YMap(
-
-                mapElement,
-
-                {
-
-                    location: {
-
-                        center,
-
-                        zoom:
-                            Number.isFinite(
-                                myLatitude
-                            )
-                                ? 15
-                                : 12
-                    }
-                }
-            );
-
-
-        map.addChild(
-            new YMapDefaultSchemeLayer()
-        );
-
-
-        map.addChild(
-            new YMapDefaultFeaturesLayer()
-        );
-
-
-        mapInitialized = true;
-
-
-        setTimeout(
-            () => {
-
-                updateMyMarker();
-
-                updateMapUsers();
-
-            },
-            100
-        );
-
-
+        map.setLocation(options);
     } catch (error) {
-
-        console.error(
-            "Yandex map error:",
-            error
-        );
+        console.error("Map location error:", error);
     }
 }
 
 
 /* =========================================================
-   PREMIUM MARKER ELEMENT
+   MARKERS
    ========================================================= */
 
-function createMarkerElement(
-    user,
-    isMe = false
-) {
+const SELECTED_CLASS = "gps-marker-selected";
 
-    const element =
-        document.createElement("div");
+function clearSelectedMarkers() {
+    document
+        .querySelectorAll(`.${SELECTED_CLASS}`)
+        .forEach(element => element.classList.remove(SELECTED_CLASS));
+}
 
-    const online =
-        isMe ||
-        user.online !== false;
+function updateMarkerElement(element, user, isMe = false) {
+    if (!element) return;
 
-    element.className =
-        isMe
-            ? "gps-premium-marker gps-premium-marker-me"
-            : "gps-premium-marker";
+    const online = isMe || user.online !== false;
+    const name = user.name || (isMe ? "Siz" : "Noma'lum");
 
-    const name =
-        user.name ||
-        (
-            isMe
-                ? "Siz"
-                : "Noma'lum"
-        );
+    element.classList.toggle("offline", !online);
 
-    const initial =
-        (
-            user.name ||
-            (
-                isMe
-                    ? "S"
-                    : "N"
-            )
-        )
-            .charAt(0)
-            .toUpperCase();
+    const initial = element.querySelector(".gps-marker-initial");
+    const nameEl = element.querySelector(".gps-marker-name");
+    const statusEl = element.querySelector(".gps-marker-status");
 
-    const statusText =
-        isMe
-            ? "Siz"
-            : (
-                online
-                    ? "Online"
-                    : "Offline"
-            );
+    if (initial) initial.textContent = name.charAt(0).toUpperCase();
+    if (nameEl) nameEl.textContent = name;
+    if (statusEl) statusEl.textContent = isMe ? "Siz" : (online ? "Online" : "Offline");
+
+    if (!isMe) {
+        const hue = hueFromString(name);
+
+        element.style.setProperty("--c1", `hsl(${hue} 72% 54%)`);
+        element.style.setProperty("--c2", `hsl(${(hue + 40) % 360} 72% 42%)`);
+    }
+}
+
+function createMarkerElement(user, isMe = false) {
+    const element = document.createElement("div");
+
+    element.className = isMe
+        ? "gps-premium-marker gps-premium-marker-me"
+        : "gps-premium-marker";
 
     element.innerHTML = `
+        <div class="gps-marker-card">
+            <div class="gps-marker-name"></div>
+            <div class="gps-marker-status"></div>
+        </div>
 
-        <div class="gps-marker-wrapper">
-
-            <div class="gps-marker-card">
-
-                <div class="gps-marker-avatar">
-
-                    <span>
-                        ${escapeHtml(initial)}
-                    </span>
-
-                    <i
-                        class="
-                            gps-marker-online
-                            ${online ? "" : "offline"}
-                        "
-                    ></i>
-
-                </div>
-
-                <div class="gps-marker-content">
-
-                    <div class="gps-marker-name">
-                        ${escapeHtml(name)}
-                    </div>
-
-                    <div class="gps-marker-status">
-                        ${escapeHtml(statusText)}
-                    </div>
-
-                </div>
-
-            </div>
-
-            <div class="gps-marker-pin">
-
-                <div class="gps-marker-pin-inner"></div>
-
-            </div>
-
+        <div class="gps-marker-dot">
+            <span class="gps-marker-initial"></span>
+            <i class="gps-marker-online"></i>
         </div>
     `;
 
-    /*
-     * Marker bosilganda ismni ko‘rsatish/yashirish.
-     */
-    element.addEventListener(
-        "click",
-        event => {
+    updateMarkerElement(element, user, isMe);
 
-            event.stopPropagation();
+    element.addEventListener("click", event => {
+        event.stopPropagation();
 
-            const wasSelected =
-                element.classList.contains(
-                    "gps-marker-selected"
-                );
+        const wasSelected = element.classList.contains(SELECTED_CLASS);
 
-            /*
-             * Boshqa markerlarning
-             * ochilgan nomlarini yopamiz.
-             */
-            if (isMe) {
+        clearSelectedMarkers();
 
-                userMarkers.forEach(
-                    data => {
-
-                        data.element.classList.remove(
-                            "gps-marker-selected"
-                        );
-
-                    }
-                );
-
-            } else {
-
-                userMarkers.forEach(
-                    data => {
-
-                        data.element.classList.remove(
-                            "gps-marker-selected"
-                        );
-
-                    }
-                );
-            }
-
-            /*
-             * Agar avval yopiq bo‘lgan bo‘lsa,
-             * ochamiz.
-             */
-            if (!wasSelected) {
-
-                element.classList.add(
-                    "gps-marker-selected"
-                );
-            }
-        }
-    );
+        if (!wasSelected) element.classList.add(SELECTED_CLASS);
+    });
 
     return element;
 }
 
-
-/* =========================================================
-   UPDATE MARKER CONTENT
-   ========================================================= */
-
-function updateMarkerElement(
-    element,
-    user,
-    isMe = false
-) {
-
-    if (!element) {
-        return;
-    }
-
-    const avatar =
-        element.querySelector(
-            ".gps-marker-avatar span"
-        );
-
-    const name =
-        element.querySelector(
-            ".gps-marker-name"
-        );
-
-    const status =
-        element.querySelector(
-            ".gps-marker-status"
-        );
-
-    const onlineDot =
-        element.querySelector(
-            ".gps-marker-online"
-        );
-
-    const initial =
-        (
-            user.name ||
-            (
-                isMe
-                    ? "S"
-                    : "N"
-            )
-        )
-            .charAt(0)
-            .toUpperCase();
-
-    const online =
-        isMe ||
-        user.online !== false;
-
-    if (avatar) {
-
-        avatar.textContent =
-            initial;
-    }
-
-    if (name) {
-
-        name.textContent =
-            user.name ||
-            (
-                isMe
-                    ? "Siz"
-                    : "Noma'lum"
-            );
-    }
-
-    if (status) {
-
-        status.textContent =
-            isMe
-                ? "Siz"
-                : (
-                    online
-                        ? "Online"
-                        : "Offline"
-                );
-    }
-
-    if (onlineDot) {
-
-        onlineDot.classList.toggle(
-            "offline",
-            !online
-        );
-    }
-}
-
-/* =========================================================
-   MY MARKER
-   ========================================================= */
-
 function updateMyMarker() {
+    if (!mapInitialized || !map || typeof ymaps3 === "undefined") return;
+    if (!validCoords(myLatitude, myLongitude)) return;
 
-    if (
-        !mapInitialized ||
-        !map
-    ) {
-        return;
-    }
+    const position = [myLongitude, myLatitude];
 
-
-    if (
-        !Number.isFinite(myLatitude) ||
-        !Number.isFinite(myLongitude)
-    ) {
-        return;
-    }
-
-
-    if (
-        typeof ymaps3 ===
-        "undefined"
-    ) {
-        return;
-    }
-
-
-    const position = [
-
-        myLongitude,
-
-        myLatitude
-    ];
-
-
-    const user = {
-
-        id:
-            currentUserId,
-
-        name:
-            currentUserName ||
-            "Siz",
-
-        lat:
-            myLatitude,
-
-        lng:
-            myLongitude,
-
-        online:
-            true
+    const me = {
+        id: currentUserId,
+        name: currentUserName || "Siz",
+        online: true
     };
 
-
     try {
-
         if (!myMarker) {
+            const element = createMarkerElement(me, true);
 
-            const markerElement =
-                createMarkerElement(
-                    user,
-                    true
-                );
+            const marker = new ymaps3.YMapMarker({ coordinates: position }, element);
 
+            map.addChild(marker);
 
-            myMarker =
-                new ymaps3.YMapMarker(
-
-                    {
-                        coordinates:
-                            position
-                    },
-
-                    markerElement
-                );
-
-
-            myMarker.__element =
-                markerElement;
-
-
-            map.addChild(
-                myMarker
-            );
-
-
+            myMarker = { marker, element };
         } else {
+            myMarker.marker.update({ coordinates: position });
 
-            myMarker.update({
-
-                coordinates:
-                    position
-
-            });
-
-
-            updateMarkerElement(
-
-                myMarker.__element,
-
-                user,
-
-                true
-            );
+            updateMarkerElement(myMarker.element, me, true);
         }
 
-
-        /*
-         * Birinchi aniq GPS kelganda
-         * xaritani o‘zimizga markazlaymiz.
-         */
-
-        if (
-            !firstLocationCentered
-        ) {
-
+        /* Birinchi GPS kelganda xaritani o'zimizga markazlaymiz */
+        if (!firstLocationCentered) {
             firstLocationCentered = true;
 
-
-            try {
-
-                map.setLocation({
-
-                    center:
-                        position,
-
-                    zoom:
-                        15,
-
-                    duration:
-                        600
-
-                });
-
-            } catch (error) {}
+            setMapLocation({ center: position, zoom: 15, duration: 600 });
         }
-
     } catch (error) {
-
-        console.error(
-            "My marker error:",
-            error
-        );
+        console.error("My marker error:", error);
     }
 }
 
-/* =========================================================
-   MAP USERS — GPS KOORDINATALARINI TEKSHIRISH
-   ========================================================= */
-
 function updateMapUsers() {
-    if (
-        !mapInitialized ||
-        !map ||
-        typeof ymaps3 === "undefined"
-    ) {
-        return;
-    }
+    if (!mapInitialized || !map || typeof ymaps3 === "undefined") return;
 
     const activeIds = new Set();
 
     users.forEach(user => {
         const id = String(user.id ?? "");
 
-        // ID bo‘lmasa, marker yaratmaymiz.
-        if (!id) return;
+        if (!id || id === String(currentUserId)) return;
 
-        // O‘z markerimiz alohida boshqariladi.
-        if (id === String(currentUserId)) return;
-
-        /*
-         * MUHIM:
-         * Number(null) va Number("") natijasi 0 bo‘ladi.
-         * Shu sababli bo‘sh koordinatalar Afrikadagi
-         * [0, 0] nuqtasi sifatida chiqishi mumkin.
-         */
-        if (
-            user.lat === null ||
-            user.lat === undefined ||
-            user.lat === "" ||
-            user.lng === null ||
-            user.lng === undefined ||
-            user.lng === ""
-        ) {
-            return;
-        }
-
-        const lat = Number(user.lat);
-        const lng = Number(user.lng);
-
-        if (
-            !Number.isFinite(lat) ||
-            !Number.isFinite(lng) ||
-            lat < -90 ||
-            lat > 90 ||
-            lng < -180 ||
-            lng > 180
-        ) {
-            console.warn(
-                "Noto‘g‘ri foydalanuvchi koordinatasi:",
-                {
-                    id: user.id,
-                    name: user.name,
-                    lat: user.lat,
-                    lng: user.lng
-                }
-            );
-            return;
-        }
+        if (!validCoords(user.lat, user.lng)) return;
 
         activeIds.add(id);
 
-        // Yandex Maps 3.0 tartibi: [longitude, latitude]
-        const position = [lng, lat];
+        /* Yandex Maps 3.0 tartibi: [longitude, latitude] */
+        const position = [toCoord(user.lng), toCoord(user.lat)];
 
         try {
-            if (userMarkers.has(id)) {
-                const markerData = userMarkers.get(id);
+            const existing = userMarkers.get(id);
 
-                markerData.marker.update({
-                    coordinates: position
-                });
+            if (existing) {
+                existing.marker.update({ coordinates: position });
 
-                updateMarkerElement(
-                    markerData.element,
-                    user,
-                    false
-                );
+                updateMarkerElement(existing.element, user, false);
             } else {
-                const element = createMarkerElement(
-                    user,
-                    false
-                );
+                const element = createMarkerElement(user, false);
 
-                const marker = new ymaps3.YMapMarker(
-                    {
-                        coordinates: position
-                    },
-                    element
-                );
+                const marker = new ymaps3.YMapMarker({ coordinates: position }, element);
 
                 map.addChild(marker);
 
-                userMarkers.set(id, {
-                    marker,
-                    element
-                });
+                userMarkers.set(id, { marker, element });
             }
         } catch (error) {
-            console.error(
-                "User marker error:",
-                error,
-                user
-            );
+            console.error("User marker error:", error, user);
         }
     });
 
-    // Koordinatasi yo‘q yoki ro‘yxatdan olib tashlangan
-    // foydalanuvchilarning eski markerlarini tozalaymiz.
-    for (const [id, markerData] of userMarkers.entries()) {
-        if (!activeIds.has(id)) {
-            try {
-                map.removeChild(markerData.marker);
-            } catch (error) {
-                console.warn(
-                    "Marker olib tashlanmadi:",
-                    id,
-                    error
-                );
-            }
+    /* Koordinatasi yo'q / ketgan foydalanuvchilar markerlarini tozalash */
+    for (const [id, data] of userMarkers.entries()) {
+        if (activeIds.has(id)) continue;
 
-            userMarkers.delete(id);
-        }
+        try {
+            map.removeChild(data.marker);
+        } catch (error) { /* ignore */ }
+
+        userMarkers.delete(id);
     }
 }
 
-/* =========================================================
-   CLEAR MARKERS
-   ========================================================= */
-
 function clearMapMarkers() {
-
-    if (
-        map &&
-        myMarker
-    ) {
-
+    if (map && myMarker) {
         try {
-
-            map.removeChild(
-                myMarker
-            );
-
-        } catch (error) {}
+            map.removeChild(myMarker.marker);
+        } catch (error) { /* ignore */ }
     }
-
 
     myMarker = null;
 
-
     if (map) {
-
-        for (
-            const markerData
-            of userMarkers.values()
-        ) {
-
+        for (const data of userMarkers.values()) {
             try {
-
-                map.removeChild(
-                    markerData.marker
-                );
-
-            } catch (error) {}
+                map.removeChild(data.marker);
+            } catch (error) { /* ignore */ }
         }
     }
-
 
     userMarkers.clear();
 }
 
 
 /* =========================================================
-   CENTER MAP
+   MAP CAMERA
    ========================================================= */
 
 function centerMapOnMe() {
-
     if (!map) {
-
-        initMap();
-
-        setTimeout(
-            () => {
-                centerMapOnMe();
-            },
-            300
-        );
-
-        return;
-    }
-
-
-    if (
-        !Number.isFinite(myLatitude) ||
-        !Number.isFinite(myLongitude)
-    ) {
-
-        startLocationTracking();
-
-        setLocationStatus(
-            "Joylashuv olinmoqda...",
-            "connecting"
-        );
-
-        return;
-    }
-
-
-    try {
-
-        map.setLocation({
-
-            center: [
-
-                myLongitude,
-
-                myLatitude
-
-            ],
-
-            zoom:
-                16,
-
-            duration:
-                500
-
+        initMap().then(() => {
+            if (map) centerMapOnMe();
         });
 
-    } catch (error) {
-
-        console.error(
-            "Map center error:",
-            error
-        );
+        return;
     }
+
+    if (!validCoords(myLatitude, myLongitude)) {
+        startLocationTracking();
+
+        setLocationStatus("Joylashuv olinmoqda...", "connecting");
+
+        return;
+    }
+
+    setMapLocation({
+        center: [myLongitude, myLatitude],
+        zoom: 16,
+        duration: 500
+    });
+}
+
+/* Butun guruhni bir ekranda ko'rsatish */
+function fitGroup() {
+    if (!map) {
+        initMap().then(() => {
+            if (map) fitGroup();
+        });
+
+        return;
+    }
+
+    const points = [];
+
+    if (validCoords(myLatitude, myLongitude)) {
+        points.push([myLongitude, myLatitude]);
+    }
+
+    users.forEach(user => {
+        if (String(user.id) === String(currentUserId)) return;
+
+        if (validCoords(user.lat, user.lng)) {
+            points.push([toCoord(user.lng), toCoord(user.lat)]);
+        }
+    });
+
+    if (points.length === 0) {
+        centerMapOnMe();
+        return;
+    }
+
+    if (points.length === 1) {
+        setMapLocation({ center: points[0], zoom: 16, duration: 600 });
+        return;
+    }
+
+    const lngs = points.map(p => p[0]);
+    const lats = points.map(p => p[1]);
+
+    const padLng = Math.max((Math.max(...lngs) - Math.min(...lngs)) * 0.2, 0.0008);
+    const padLat = Math.max((Math.max(...lats) - Math.min(...lats)) * 0.2, 0.0008);
+
+    setMapLocation({
+        bounds: [
+            [Math.min(...lngs) - padLng, Math.min(...lats) - padLat],
+            [Math.max(...lngs) + padLng, Math.max(...lats) + padLat]
+        ],
+        duration: 700
+    });
+}
+
+function centerMapOnUser(user) {
+    if (!user) return;
+
+    const me = String(user.id) === String(currentUserId);
+
+    const lat = me ? myLatitude : toCoord(user.lat);
+    const lng = me ? myLongitude : toCoord(user.lng);
+
+    if (!validCoords(lat, lng)) {
+        showRoomError("Bu foydalanuvchining joylashuvi hali mavjud emas.");
+
+        setTimeout(() => clearError("roomError"), 2500);
+
+        return;
+    }
+
+    if (!map) {
+        initMap().then(() => {
+            if (map) centerMapOnUser(user);
+        });
+
+        return;
+    }
+
+    setMapLocation({ center: [lng, lat], zoom: 16, duration: 650 });
+
+    clearSelectedMarkers();
+
+    const element = me
+        ? myMarker?.element
+        : userMarkers.get(String(user.id))?.element;
+
+    element?.classList.add(SELECTED_CLASS);
+
+    /* Mobil: xaritaga qaytish */
+    $("map")?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 
@@ -3442,423 +1588,45 @@ function centerMapOnMe() {
    ========================================================= */
 
 async function copyRoomCode() {
+    const code = normalizeRoomCode(currentRoomCode);
 
-    const code =
-        normalizeRoomCode(
-            currentRoomCode
-        );
-
-
-    if (!code) {
-        return;
-    }
-
+    if (!code) return;
 
     try {
-
-        if (
-            navigator.clipboard &&
-            navigator.clipboard.writeText
-        ) {
-
-            await navigator.clipboard.writeText(
-                code
-            );
-
-        } else {
-
-            throw new Error(
-                "Clipboard API mavjud emas"
-            );
+        if (!navigator.clipboard?.writeText) {
+            throw new Error("Clipboard API mavjud emas");
         }
 
-
-        const button =
-            $("copyRoomBtn");
-
-
-        const text =
-            $("copyRoomText");
-
-
-        if (text) {
-
-            const oldText =
-                text.textContent;
-
-
-            text.textContent =
-                "Nusxalandi";
-
-
-            setTimeout(
-                () => {
-
-                    text.textContent =
-                        oldText;
-
-                },
-                1500
-            );
-
-        } else if (button) {
-
-            const oldText =
-                button.innerHTML;
-
-
-            button.innerHTML =
-                `
-                    <span>✓</span>
-                    <span>Nusxalandi</span>
-                `;
-
-
-            setTimeout(
-                () => {
-
-                    button.innerHTML =
-                        oldText;
-
-                },
-                1500
-            );
-        }
-
+        await navigator.clipboard.writeText(code);
     } catch (error) {
+        const textarea = document.createElement("textarea");
 
-        const textarea =
-            document.createElement(
-                "textarea"
-            );
+        textarea.value = code;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
 
-
-        textarea.value =
-            code;
-
-
-        textarea.style.position =
-            "fixed";
-
-        textarea.style.opacity =
-            "0";
-
-
-        document.body.appendChild(
-            textarea
-        );
-
+        document.body.appendChild(textarea);
 
         textarea.select();
 
-
         try {
-
-            document.execCommand(
-                "copy"
-            );
-
-        } catch (copyError) {}
-
+            document.execCommand("copy");
+        } catch (copyError) { /* ignore */ }
 
         textarea.remove();
     }
-}
 
+    const text = $("copyRoomText");
 
-/* =========================================================
-   LEAVE GROUP
-   ========================================================= */
+    if (text) {
+        const oldText = text.textContent;
 
-function leaveGroup() {
+        text.textContent = "Nusxalandi ✓";
 
-    /*
-     * Serverga leave yuboramiz.
-     */
-
-    if (
-        ws &&
-        ws.readyState === WebSocket.OPEN &&
-        currentRoomCode
-    ) {
-
-        try {
-
-            ws.send(
-                JSON.stringify({
-
-                    type:
-                        "leave-room"
-
-                })
-            );
-
-        } catch (error) {
-
-            console.error(
-                "Leave error:",
-                error
-            );
-        }
+        setTimeout(() => {
+            text.textContent = oldText;
+        }, 1500);
     }
-
-
-    /*
-     * MUHIM:
-     *
-     * ROOM CODE butunlay o‘chirilmaydi.
-     *
-     * Oxirgi guruh LAST_ROOM_KEY ichida qoladi.
-     *
-     * Keyingi safar sayt ochilganda:
-     *
-     *   F5
-     *   browser yopib ochish
-     *   bir necha soat o‘tishi
-     *
-     * orqali yana shu guruhga avtomatik
-     * ulanadi.
-     */
-
-    if (currentRoomCode) {
-
-        localStorage.setItem(
-            LAST_ROOM_KEY,
-            currentRoomCode
-        );
-    }
-
-
-    currentRoomCode = "";
-
-
-    localStorage.removeItem(
-        ROOM_CODE_KEY
-    );
-
-
-    pendingAction = null;
-    pendingActionSent = false;
-
-
-    users = [];
-
-
-    stopLocationTracking();
-
-
-    clearMapMarkers();
-
-
-    renderUsers();
-
-
-    showSetup();
-
-
-    setConnectionStatus(
-        "Ulangan",
-        "online"
-    );
-}
-
-
-/* =========================================================
-   SWITCH ROOM
-   ========================================================= */
-
-function switchRoom() {
-
-    clearErrors();
-
-
-    const input =
-        $("switchRoomInput");
-
-
-    const code =
-        normalizeRoomCode(
-            input?.value
-        );
-
-
-    if (
-        !/^[A-Z0-9]{6}$/.test(code)
-    ) {
-
-        showRoomError(
-            "Guruh kodi noto‘g‘ri."
-        );
-
-        return;
-    }
-
-
-    const name =
-        currentUserName ||
-        String(
-            $("userName")?.value ||
-            ""
-        )
-            .trim();
-
-
-    if (!name) {
-
-        showRoomError(
-            "Avval ismingizni kiriting."
-        );
-
-        return;
-    }
-
-
-    /*
-     * Bir xil guruhga switch kerak emas.
-     */
-
-    if (
-        normalizeRoomCode(
-            currentRoomCode
-        ) === code
-    ) {
-
-        showRoomError(
-            "Siz hozir shu guruhdasiz."
-        );
-
-        return;
-    }
-
-
-    const nextAction = {
-
-        type:
-            "join",
-
-        roomCode:
-            code,
-
-        name
-    };
-
-
-    /*
-     * Avval eski guruhdan chiqamiz.
-     */
-
-    if (
-        ws &&
-        ws.readyState === WebSocket.OPEN &&
-        currentRoomCode
-    ) {
-
-        switchPendingAction =
-            nextAction;
-
-
-        ws.send(
-            JSON.stringify({
-
-                type:
-                    "leave-room"
-
-            })
-        );
-
-
-        /*
-         * Agar server left-room javobini kechiktirsa,
-         * 1.5 soniyadan keyin baribir join qilamiz.
-         */
-
-        if (switchFallbackTimer) {
-
-            clearTimeout(
-                switchFallbackTimer
-            );
-        }
-
-
-        switchFallbackTimer =
-            setTimeout(
-                () => {
-
-                    if (
-                        switchPendingAction
-                    ) {
-
-                        const action =
-                            switchPendingAction;
-
-                        switchPendingAction =
-                            null;
-
-
-                        currentRoomCode =
-                            code;
-
-
-                        localStorage.setItem(
-                            ROOM_CODE_KEY,
-                            code
-                        );
-
-                        localStorage.setItem(
-                            LAST_ROOM_KEY,
-                            code
-                        );
-
-
-                        pendingAction =
-                            action;
-
-
-                        pendingActionSent =
-                            false;
-
-
-                        connectWebSocket();
-                    }
-
-                },
-                1500
-            );
-
-
-        return;
-    }
-
-
-    /*
-     * Socket yo‘q bo‘lsa,
-     * to‘g‘ridan-to‘g‘ri join.
-     */
-
-    currentRoomCode =
-        code;
-
-
-    localStorage.setItem(
-        ROOM_CODE_KEY,
-        code
-    );
-
-    localStorage.setItem(
-        LAST_ROOM_KEY,
-        code
-    );
-
-
-    pendingAction =
-        nextAction;
-
-
-    pendingActionSent =
-        false;
-
-
-    connectWebSocket();
 }
 
 
@@ -3866,98 +1634,47 @@ function switchRoom() {
    THEME
    ========================================================= */
 
-function applyTheme(
-    theme
-) {
+function applyTheme(theme) {
+    const dark = theme === "dark";
 
-    const root =
-        document.documentElement;
+    document.documentElement.classList.toggle("dark", dark);
+    document.body?.classList.toggle("dark", dark);
 
+    store.set(THEME_KEY, theme);
 
-    if (
-        theme === "dark"
-    ) {
-
-        root.classList.add("dark");
-
-        document.body?.classList.add(
-            "dark"
-        );
-
-    } else {
-
-        root.classList.remove("dark");
-
-        document.body?.classList.remove(
-            "dark"
-        );
-    }
-
-
-    localStorage.setItem(
-        THEME_KEY,
-        theme
+    $("themeBtn")?.setAttribute(
+        "aria-label",
+        dark ? "Yorug‘ rejim" : "Tungi rejim"
     );
 
+    const icon = $("themeIcon");
 
-    const button =
-        $("themeBtn");
+    if (icon) icon.textContent = dark ? "☀" : "☾";
 
+    const meta = document.querySelector('meta[name="theme-color"]');
 
-    const icon =
-        $("themeIcon");
+    if (meta) meta.setAttribute("content", dark ? "#060b09" : "#f4f8f6");
 
-
-    if (button) {
-
-        button.setAttribute(
-
-            "aria-label",
-
-            theme === "dark"
-
-                ? "Yorug‘ rejim"
-
-                : "Tungi rejim"
-
-        );
-    }
-
-
-    if (icon) {
-
-        icon.textContent =
-            theme === "dark"
-                ? "☀"
-                : "☾";
-
-    } else if (button) {
-
-        button.textContent =
-            theme === "dark"
-                ? "☀"
-                : "☾";
+    /* Xarita ham mavzuga moslashadi */
+    if (schemeLayer) {
+        try {
+            schemeLayer.update({ theme });
+        } catch (error) { /* ignore */ }
     }
 }
 
-
 function toggleTheme() {
+    applyTheme(getTheme() === "dark" ? "light" : "dark");
+}
 
-    const current =
-        localStorage.getItem(
-            THEME_KEY
-        ) || "light";
+function initialTheme() {
+    const saved = store.get(THEME_KEY);
 
+    if (saved === "dark" || saved === "light") return saved;
 
-    applyTheme(
-
-        current === "dark"
-
-            ? "light"
-
-            : "dark"
-
-    );
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
 }
 
 
@@ -3965,866 +1682,312 @@ function toggleTheme() {
    EVENTS
    ========================================================= */
 
+function bindEnter(input, handler) {
+    input?.addEventListener("keydown", event => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            handler();
+        }
+    });
+}
+
 function setupEvents() {
-
-    if (eventsInitialized) {
-        return;
-    }
-
+    if (eventsInitialized) return;
 
     eventsInitialized = true;
 
+    $("createRoomBtn")?.addEventListener("click", createRoom);
+    $("joinRoomBtn")?.addEventListener("click", joinRoom);
+    $("copyRoomBtn")?.addEventListener("click", copyRoomCode);
+    $("switchRoomBtn")?.addEventListener("click", switchRoom);
+    $("leaveGroupBtn")?.addEventListener("click", leaveGroup);
+    $("themeBtn")?.addEventListener("click", toggleTheme);
+    $("centerMapBtn")?.addEventListener("click", fitGroup);
 
-    /* =====================================================
-       CREATE
-       ===================================================== */
+    $("myLocationBtn")?.addEventListener("click", () => {
+        startLocationTracking();
+        centerMapOnMe();
+    });
 
-    const createButton =
-        $("createRoomBtn");
+    $("savedGroupsList")?.addEventListener("click", onSavedGroupsClick);
+    $("membersList")?.addEventListener("click", onMembersClick);
 
+    /* Ism */
+    const nameInput = $("userName");
 
-    if (createButton) {
+    nameInput?.addEventListener("change", () => {
+        persistName(cleanName(nameInput.value));
 
-        createButton.addEventListener(
-            "click",
-            createRoom
-        );
-    }
+        if (currentRoomCode) sendName();
+    });
 
+    /* Guruh kodi */
+    const roomInput = $("roomCode");
 
-    /* =====================================================
-       JOIN
-       ===================================================== */
+    roomInput?.addEventListener("input", () => {
+        roomInput.value = normalizeRoomCode(roomInput.value);
 
-    const joinButton =
-        $("joinRoomBtn");
+        clearError("setupError");
+    });
 
+    bindEnter(roomInput, joinRoom);
 
-    if (joinButton) {
+    /* Boshqa guruhga o'tish */
+    const switchInput = $("switchRoomInput");
 
-        joinButton.addEventListener(
-            "click",
-            joinRoom
-        );
-    }
+    switchInput?.addEventListener("input", () => {
+        switchInput.value = normalizeRoomCode(switchInput.value);
 
+        clearError("roomError");
+    });
 
-    /* =====================================================
-       COPY
-       ===================================================== */
+    bindEnter(switchInput, switchRoom);
 
-    const copyButton =
-        $("copyRoomBtn");
+    /* Tarmoq / sahifa qaytganda qayta ulanish */
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) ensureConnected();
+    });
 
-
-    if (copyButton) {
-
-        copyButton.addEventListener(
-            "click",
-            copyRoomCode
-        );
-    }
-
-
-    /* =====================================================
-       MY LOCATION
-       ===================================================== */
-
-    const myLocationButton =
-        $("myLocationBtn");
-
-
-    if (myLocationButton) {
-
-        myLocationButton.addEventListener(
-            "click",
-            () => {
-
-                startLocationTracking();
-
-                centerMapOnMe();
-
-            }
-        );
-    }
-
-
-    /* =====================================================
-       CENTER
-       ===================================================== */
-
-    const centerButton =
-        $("centerMapBtn");
-
-
-    if (centerButton) {
-
-        centerButton.addEventListener(
-            "click",
-            centerMapOnMe
-        );
-    }
-
-
-    /* =====================================================
-       SWITCH
-       ===================================================== */
-
-    const switchButton =
-        $("switchRoomBtn");
-
-
-    if (switchButton) {
-
-        switchButton.addEventListener(
-            "click",
-            switchRoom
-        );
-    }
-
-
-    /* =====================================================
-       LEAVE
-       ===================================================== */
-
-    const leaveButton =
-        $("leaveGroupBtn");
-
-
-    if (leaveButton) {
-
-        leaveButton.addEventListener(
-            "click",
-            leaveGroup
-        );
-    }
-
-
-    /* =====================================================
-       THEME
-       ===================================================== */
-
-    const themeButton =
-        $("themeBtn");
-
-
-    if (themeButton) {
-
-        themeButton.addEventListener(
-            "click",
-            toggleTheme
-        );
-    }
-
-
-    /* =====================================================
-       NAME
-       ===================================================== */
-
-    const nameInput =
-        $("userName");
-
-
-    if (nameInput) {
-
-        nameInput.addEventListener(
-            "change",
-            () => {
-
-                currentUserName =
-                    String(
-                        nameInput.value ||
-                        ""
-                    )
-                        .trim()
-                        .slice(0, 100);
-
-
-                localStorage.setItem(
-                    USER_NAME_KEY,
-                    currentUserName
-                );
-
-
-                if (
-                    currentRoomCode
-                ) {
-
-                    sendName();
-                }
-            }
-        );
-    }
-
-
-    /* =====================================================
-       ROOM CODE
-       ===================================================== */
-
-    const roomInput =
-        $("roomCode");
-
-
-    if (roomInput) {
-
-        roomInput.addEventListener(
-            "input",
-            () => {
-
-                roomInput.value =
-                    normalizeRoomCode(
-                        roomInput.value
-                    );
-
-
-                clearSetupError();
-            }
-        );
-
-
-        roomInput.addEventListener(
-            "keydown",
-            event => {
-
-                if (
-                    event.key === "Enter"
-                ) {
-
-                    event.preventDefault();
-
-                    joinRoom();
-                }
-            }
-        );
-    }
-
-
-    /* =====================================================
-       SWITCH INPUT
-       ===================================================== */
-
-    const switchInput =
-        $("switchRoomInput");
-
-
-    if (switchInput) {
-
-        switchInput.addEventListener(
-            "input",
-            () => {
-
-                switchInput.value =
-                    normalizeRoomCode(
-                        switchInput.value
-                    );
-
-
-                clearRoomError();
-            }
-        );
-
-
-        switchInput.addEventListener(
-            "keydown",
-            event => {
-
-                if (
-                    event.key === "Enter"
-                ) {
-
-                    event.preventDefault();
-
-                    switchRoom();
-                }
-            }
-        );
-    }
+    window.addEventListener("online", ensureConnected);
 }
 
 
 /* =========================================================
-   PREMIUM MARKER CSS
+   MARKER & EXTRA STYLES
    ========================================================= */
 
-function injectPremiumMarkerStyle() {
+function injectStyles() {
+    if ($("live-gps-extra-style")) return;
 
-    if (
-        $("premium-gps-marker-style")
-    ) {
-        return;
-    }
+    const style = document.createElement("style");
 
-
-    const style =
-        document.createElement("style");
-
-
-    style.id =
-        "premium-gps-marker-style";
-
+    style.id = "live-gps-extra-style";
 
     style.textContent = `
 
-        .gps-premium-marker {
+/* ---------- Status ranglari ---------- */
 
-            position: relative;
+.connection-pill.connecting {
+    color: #b7791f;
+    background: rgba(245, 158, 11, .10);
+    border-color: rgba(245, 158, 11, .20);
+}
 
-            width: 155px;
-            height: 90px;
+.connection-pill.error {
+    color: #d93a3a;
+    background: rgba(239, 68, 68, .09);
+}
 
-            display: flex;
+#connectionStatus.online,
+#locationStatus.online { color: var(--green-dark); }
 
-            justify-content: center;
+#connectionStatus.connecting,
+#locationStatus.connecting { color: #b7791f; }
 
-            align-items: flex-start;
+#connectionStatus.error,
+#locationStatus.error,
+#connectionStatus.offline,
+#locationStatus.offline { color: var(--danger); }
 
-            pointer-events: auto;
+body.dark #connectionStatus.online,
+body.dark #locationStatus.online { color: #46eb91; }
 
-            transform:
-                translate(-50%, -100%);
+/* ---------- Saqlangan guruhlar ---------- */
 
-            font-family:
-                Inter,
-                -apple-system,
-                BlinkMacSystemFont,
-                "Segoe UI",
-                sans-serif;
+.saved-group-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
 
-            z-index: 10;
+.saved-group-name {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+}
 
-            transition:
-                transform .25s ease,
-                filter .25s ease;
-        }
+#savedGroupsList .saved-delete-btn {
+    width: 38px;
+    padding: 0;
+    font-size: 19px;
+    line-height: 1;
+}
 
+/* ---------- A'zolar ---------- */
 
-        .gps-premium-marker:hover {
+.member { cursor: pointer; }
 
-            transform:
-                translate(-50%, -100%)
-                scale(1.06);
+.member.me {
+    border-color: rgba(25, 214, 107, .30);
+    background: rgba(25, 214, 107, .05);
+}
 
-            z-index: 100;
-        }
+/* ---------- Marker ---------- */
 
+.gps-premium-marker {
+    --c1: #4d88ff;
+    --c2: #2f63d8;
 
-        .gps-marker-wrapper {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
 
-            position: relative;
+.gps-premium-marker-me {
+    --c1: #19d66b;
+    --c2: #0a9e50;
+    z-index: 5;
+}
 
-            display: flex;
+.gps-marker-dot {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    color: #fff;
+    background: linear-gradient(145deg, var(--c1), var(--c2));
+    box-shadow: 0 8px 22px rgba(0, 0, 0, .28);
+    font-size: 15px;
+    font-weight: 800;
+    transition: transform .25s cubic-bezier(.22, .8, .3, 1);
+}
 
-            flex-direction: column;
+.gps-premium-marker:hover .gps-marker-dot { transform: scale(1.1); }
 
-            align-items: center;
-        }
-
-
-        .gps-marker-card {
-
-            position: relative;
-
-            min-width: 125px;
-            max-width: 155px;
-
-            height: 52px;
-
-            padding:
-                6px 10px 6px 7px;
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 8px;
-
-            border-radius: 17px;
-
-            background:
-                rgba(255,255,255,.97);
-
-            border:
-                1px solid
-                rgba(255,255,255,.9);
-
-            box-shadow:
-
-                0 10px 35px
-                rgba(0,0,0,.18),
-
-                0 3px 10px
-                rgba(0,0,0,.10),
-
-                inset 0 1px 0
-                rgba(255,255,255,.95);
-
-            backdrop-filter:
-                blur(18px);
-
-            -webkit-backdrop-filter:
-                blur(18px);
-
-            white-space: nowrap;
-
-            overflow: hidden;
-        }
-
-.gps-marker-card {
-
+.gps-marker-dot::before {
+    content: "";
+    position: absolute;
+    inset: -7px;
+    border: 2px solid var(--c1);
+    border-radius: 50%;
     opacity: 0;
-
-    visibility: hidden;
-
-    transform:
-        translateY(8px)
-        scale(.92);
-
+    animation: gps-ring 2.2s ease-out infinite;
     pointer-events: none;
-
-    transition:
-        opacity .2s ease,
-        transform .2s ease,
-        visibility .2s ease;
 }
 
+@keyframes gps-ring {
+    0%   { transform: scale(.7); opacity: .55; }
+    100% { transform: scale(1.25); opacity: 0; }
+}
 
-.gps-premium-marker:hover
+.gps-marker-online {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    width: 13px;
+    height: 13px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 10px rgba(34, 197, 94, .6);
+}
+
+.gps-premium-marker.offline .gps-marker-dot {
+    opacity: .72;
+    filter: grayscale(.85);
+}
+
+.gps-premium-marker.offline .gps-marker-dot::before { animation: none; }
+
+.gps-premium-marker.offline .gps-marker-online {
+    background: #9ca3af;
+    box-shadow: none;
+}
+
+/* Bosilganda chiqadigan ism kartasi */
+
 .gps-marker-card {
-
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 6px);
+    min-width: 84px;
+    max-width: 170px;
+    padding: 8px 13px;
+    border: 1px solid rgba(255, 255, 255, .9);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, .97);
+    box-shadow: 0 10px 32px rgba(0, 0, 0, .20), 0 3px 10px rgba(0, 0, 0, .10);
+    text-align: center;
+    white-space: nowrap;
     opacity: 0;
-
     visibility: hidden;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(6px) scale(.94);
+    transition: opacity .2s ease, transform .2s ease, visibility .2s ease;
 }
 
+.gps-marker-card::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -5px;
+    width: 10px;
+    height: 10px;
+    background: inherit;
+    border-radius: 2px;
+    transform: translateX(-50%) rotate(45deg);
+}
 
-/*
- * Faqat bosilganda ism chiqadi.
- */
-.gps-premium-marker.gps-marker-selected
-.gps-marker-card {
-
+.gps-marker-selected .gps-marker-card {
     opacity: 1;
-
     visibility: visible;
-
-    transform:
-        translateY(0)
-        scale(1);
-
     pointer-events: auto;
+    transform: translateX(-50%) translateY(0) scale(1);
 }
 
-        .gps-marker-avatar {
-
-            position: relative;
-
-            width: 37px;
-            height: 37px;
-
-            min-width: 37px;
-
-            border-radius: 50%;
-
-            display: flex;
-
-            align-items: center;
-            justify-content: center;
-
-            color: #fff;
-
-            font-size: 14px;
-
-            font-weight: 800;
-
-            background:
-                linear-gradient(
-                    145deg,
-                    #22c55e,
-                    #16a34a
-                );
-
-            box-shadow:
-
-                0 5px 15px
-                rgba(22,163,74,.35),
-
-                inset 0 1px 1px
-                rgba(255,255,255,.4);
-        }
-
-
-        .gps-marker-avatar span {
-
-            position: relative;
-
-            z-index: 2;
-        }
-
-
-        .gps-marker-online {
-
-            position: absolute;
-
-            right: -1px;
-            bottom: -1px;
-
-            width: 11px;
-            height: 11px;
-
-            border-radius: 50%;
-
-            background:
-                #22c55e;
-
-            border:
-                2px solid #fff;
-
-            box-shadow:
-                0 0 0 3px
-                rgba(34,197,94,.13),
-
-                0 0 10px
-                rgba(34,197,94,.65);
-
-            animation:
-                gps-online-pulse 2s infinite;
-        }
-
-
-        .gps-marker-online.offline {
-
-            background:
-                #9ca3af;
-
-            box-shadow:
-                0 0 0 2px
-                rgba(156,163,175,.12);
-
-            animation: none;
-        }
-
-
-        @keyframes gps-online-pulse {
-
-            0%,
-            100% {
-
-                box-shadow:
-                    0 0 0 2px
-                    rgba(34,197,94,.10),
-
-                    0 0 7px
-                    rgba(34,197,94,.45);
-            }
-
-            50% {
-
-                box-shadow:
-                    0 0 0 5px
-                    rgba(34,197,94,.08),
-
-                    0 0 14px
-                    rgba(34,197,94,.75);
-            }
-        }
-
-
-        .gps-marker-content {
-
-            min-width: 0;
-
-            display: flex;
-
-            flex-direction: column;
-
-            justify-content: center;
-        }
-
-
-        .gps-marker-name {
-
-            max-width: 94px;
-
-            overflow: hidden;
-
-            text-overflow: ellipsis;
-
-            white-space: nowrap;
-
-            color:
-                #17201c;
-
-            font-size:
-                13px;
-
-            font-weight:
-                750;
-
-            line-height:
-                1.2;
-        }
-
-
-        .gps-marker-status {
-
-            margin-top: 2px;
-
-            color:
-                #647067;
-
-            font-size:
-                10px;
-
-            font-weight:
-                600;
-
-            line-height:
-                1;
-        }
-
-
-        .gps-marker-pin {
-
-            position: relative;
-
-            width: 18px;
-            height: 18px;
-
-            margin-top: -4px;
-
-            transform:
-                rotate(45deg);
-
-            border-radius:
-                4px 4px 5px 4px;
-
-            background:
-                rgba(255,255,255,.97);
-
-            box-shadow:
-                4px 4px 11px
-                rgba(0,0,0,.12);
-        }
-
-
-        .gps-marker-pin-inner {
-
-            position: absolute;
-
-            left: 50%;
-            top: 50%;
-
-            width: 8px;
-            height: 8px;
-
-            transform:
-                translate(-50%, -50%);
-
-            border-radius: 50%;
-
-            background:
-                #19d66b;
-
-            box-shadow:
-                0 0 12px
-                rgba(25,214,107,.7);
-        }
-
-
-        .gps-premium-marker-me {
-
-            z-index: 30;
-        }
-
-
-        .gps-premium-marker-me
-        .gps-marker-card {
-
-            border:
-                1px solid
-                rgba(25,214,107,.38);
-
-            box-shadow:
-
-                0 12px 40px
-                rgba(25,214,107,.20),
-
-                0 4px 13px
-                rgba(0,0,0,.12),
-
-                inset 0 1px 0
-                rgba(255,255,255,.95);
-        }
-
-
-        .gps-premium-marker-me
-        .gps-marker-avatar {
-
-            background:
-                linear-gradient(
-                    145deg,
-                    #19d66b,
-                    #0fa958
-                );
-
-            box-shadow:
-
-                0 5px 17px
-                rgba(25,214,107,.42),
-
-                inset 0 1px 1px
-                rgba(255,255,255,.42);
-        }
-
-
-        .gps-premium-marker-me
-        .gps-marker-pin-inner {
-
-            background:
-                #19d66b;
-
-            box-shadow:
-                0 0 15px
-                rgba(25,214,107,.9);
-        }
-
-
-        .dark
-        .gps-marker-card,
-
-        body.dark
-        .gps-marker-card {
-
-            background:
-                rgba(25,31,28,.97);
-
-            border:
-                1px solid
-                rgba(255,255,255,.10);
-
-            box-shadow:
-
-                0 12px 40px
-                rgba(0,0,0,.45),
-
-                inset 0 1px 0
-                rgba(255,255,255,.06);
-        }
-
-
-        .dark
-        .gps-marker-name,
-
-        body.dark
-        .gps-marker-name {
-
-            color:
-                #f3f7f5;
-        }
-
-
-        .dark
-        .gps-marker-status,
-
-        body.dark
-        .gps-marker-status {
-
-            color:
-                #9ca9a1;
-        }
-
-
-        .dark
-        .gps-marker-pin,
-
-        body.dark
-        .gps-marker-pin {
-
-            background:
-                rgba(25,31,28,.97);
-
-            box-shadow:
-                4px 4px 13px
-                rgba(0,0,0,.4);
-        }
-
-
-        @media (max-width: 600px) {
-
-            .gps-premium-marker {
-
-                width: 135px;
-                height: 82px;
-            }
-
-
-            .gps-marker-card {
-
-                min-width: 110px;
-
-                height: 46px;
-
-                padding:
-                    5px 8px 5px 6px;
-
-                gap: 7px;
-
-                border-radius: 15px;
-            }
-
-
-            .gps-marker-avatar {
-
-                width: 33px;
-                height: 33px;
-
-                min-width: 33px;
-
-                font-size: 12px;
-            }
-
-
-            .gps-marker-online {
-
-                width: 10px;
-                height: 10px;
-            }
-
-
-            .gps-marker-name {
-
-                max-width: 78px;
-
-                font-size: 12px;
-            }
-
-
-            .gps-marker-status {
-
-                font-size: 9px;
-            }
-
-
-            .gps-marker-pin {
-
-                width: 16px;
-                height: 16px;
-            }
-
-
-            .gps-marker-pin-inner {
-
-                width: 7px;
-                height: 7px;
-            }
-        }
-
-    `;
-
-
-    document.head.appendChild(
-        style
-    );
+.gps-marker-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #17201c;
+    font-size: 13px;
+    font-weight: 750;
+    line-height: 1.2;
+}
+
+.gps-marker-status {
+    margin-top: 3px;
+    color: #647067;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+body.dark .gps-marker-card {
+    border-color: rgba(255, 255, 255, .10);
+    background: rgba(25, 31, 28, .97);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .45);
+}
+
+body.dark .gps-marker-name { color: #f3f7f5; }
+body.dark .gps-marker-status { color: #9ca9a1; }
+
+@media (max-width: 600px) {
+    .gps-premium-marker { width: 40px; height: 40px; }
+    .gps-marker-dot { width: 34px; height: 34px; font-size: 14px; }
+    .gps-marker-name { font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gps-marker-dot::before { animation: none; }
+}
+`;
+
+    document.head.appendChild(style);
 }
 
 
@@ -4833,81 +1996,35 @@ function injectPremiumMarkerStyle() {
    ========================================================= */
 
 window.GPS_DEBUG = {
-
     getState() {
-
         return {
-
             currentUserId,
-
             currentUserName,
-
             currentRoomCode,
-
-            lastRoomCode:
-                localStorage.getItem(
-                    LAST_ROOM_KEY
-                ),
-
+            lastRoomCode: store.get(LAST_ROOM_KEY),
             pendingAction,
-
             pendingActionSent,
-
-            connected:
-                !!(
-                    ws &&
-                    ws.readyState ===
-                    WebSocket.OPEN
-                ),
-
+            connected: !!(ws && ws.readyState === WebSocket.OPEN),
             users,
-
             savedGroups,
-
             mapInitialized,
-
             myLocation: {
-
-                lat:
-                    myLatitude,
-
-                lng:
-                    myLongitude,
-
-                accuracy:
-                    myAccuracy
+                lat: myLatitude,
+                lng: myLongitude,
+                accuracy: myAccuracy
             }
         };
     },
 
-
     reconnect() {
-
         manuallyClosed = false;
-
         pendingActionSent = false;
 
         connectWebSocket();
     },
 
-
     clearSession() {
-
-        localStorage.removeItem(
-            USER_ID_KEY
-        );
-
-        localStorage.removeItem(
-            USER_NAME_KEY
-        );
-
-        localStorage.removeItem(
-            ROOM_CODE_KEY
-        );
-
-        localStorage.removeItem(
-            LAST_ROOM_KEY
-        );
+        [USER_ID_KEY, USER_NAME_KEY, ROOM_CODE_KEY, LAST_ROOM_KEY].forEach(store.remove);
 
         location.reload();
     }
@@ -4918,40 +2035,10 @@ window.GPS_DEBUG = {
    START
    ========================================================= */
 
-document.addEventListener(
-    "DOMContentLoaded",
-    () => {
+document.addEventListener("DOMContentLoaded", () => {
+    applyTheme(initialTheme());
 
-        const savedTheme =
-            localStorage.getItem(
-                THEME_KEY
-            ) || "light";
-
-
-        applyTheme(
-            savedTheme
-        );
-
-
-        /*
-         * Premium marker CSS.
-         */
-
-        injectPremiumMarkerStyle();
-
-
-        /*
-         * Eventlar.
-         */
-
-        setupEvents();
-
-
-        /*
-         * Session.
-         */
-
-        restoreSession();
-
-    }
-);
+    injectStyles();
+    setupEvents();
+    restoreSession();
+});
