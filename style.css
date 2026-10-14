@@ -347,3 +347,458 @@ html:not(.dark) .footer strong, body:not(.dark) .footer strong { color: #314c3d;
   .status-grid { grid-template-columns: minmax(0,1fr); }
   .map-container { min-height: 320px; }
 }
+
+/* =========================================================
+   LIVE GPS — PREMIUM MONITORING UPGRADE
+   Existing HTML / JavaScript untouched
+   ========================================================= */
+
+:root {
+  --green: #46ffc0;
+  --green-2: #16dba0;
+  --radius: 24px;
+  --shadow: 0 24px 80px rgba(0,0,0,.38);
+}
+
+/* Premium background */
+body {
+  background:
+    radial-gradient(ellipse at 50% -20%, rgba(29,226,161,.13), transparent 52%),
+    radial-gradient(ellipse at 100% 55%, rgba(14,123,102,.08), transparent 35%),
+    #060a0b;
+}
+
+body::before {
+  opacity: .22;
+  background-size: 36px 36px;
+}
+
+/* Glass navigation */
+.topbar {
+  min-height: 82px;
+  padding-inline: clamp(18px, 4vw, 64px);
+  background: rgba(5,10,11,.88);
+  border-bottom-color: rgba(70,255,192,.12);
+  box-shadow: 0 8px 40px rgba(0,0,0,.22);
+}
+
+.brand-icon {
+  border-radius: 16px;
+  box-shadow: 0 0 32px rgba(70,255,192,.12),
+              inset 0 1px rgba(255,255,255,.12);
+}
+
+.brand-text strong {
+  font-size: 18px;
+  letter-spacing: -.7px;
+}
+
+.connection-pill {
+  min-height: 39px;
+  padding-inline: 15px;
+  box-shadow: inset 0 1px rgba(255,255,255,.04);
+}
+
+/* More breathing room */
+.page {
+  width: min(1580px, calc(100% - 48px));
+  margin-top: 30px;
+}
+
+.room-card {
+  gap: 20px;
+  padding: clamp(18px, 2vw, 30px);
+  border-radius: 30px;
+  border-color: rgba(70,255,192,.13);
+  background:
+    radial-gradient(ellipse at 0 0, rgba(35,173,131,.07), transparent 40%),
+    linear-gradient(145deg, #101819, #090f10 75%);
+  box-shadow: 0 30px 100px rgba(0,0,0,.3),
+              inset 0 1px rgba(255,255,255,.045);
+}
+
+/* Room header */
+.room-top {
+  padding: 8px 4px 22px;
+  border-bottom-color: rgba(70,255,192,.14);
+}
+
+.room-label {
+  letter-spacing: 2px;
+  color: #8ba99e;
+}
+
+#currentRoomCode {
+  font-size: clamp(30px, 3vw, 42px);
+  letter-spacing: 5px;
+  text-shadow: 0 0 35px rgba(70,255,192,.12);
+}
+
+.copy-btn {
+  min-height: 46px;
+  border-radius: 14px;
+}
+
+/* Monitoring status cards */
+.status-grid {
+  gap: 15px;
+}
+
+.status-card {
+  min-height: 88px;
+  padding: 19px;
+  border-radius: 20px;
+  border-color: rgba(70,255,192,.12);
+  background:
+    linear-gradient(135deg, rgba(70,255,192,.055), transparent 65%),
+    rgba(255,255,255,.025);
+  box-shadow: inset 0 1px rgba(255,255,255,.035);
+  transition: border-color .2s, transform .2s, background .2s;
+}
+
+.status-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(70,255,192,.3);
+  background-color: rgba(70,255,192,.035);
+}
+
+.status-card-icon {
+  width: 46px;
+  height: 46px;
+  flex-basis: 46px;
+  border-radius: 15px;
+  border: 1px solid rgba(70,255,192,.13);
+}
+
+/* Large, clean map panel */
+.map-wrapper {
+  border-radius: 26px;
+  border-color: rgba(70,255,192,.17);
+  box-shadow: 0 24px 65px rgba(0,0,0,.28),
+              0 0 40px rgba(35,230,169,.045);
+}
+
+.map-header {
+  min-height: 86px;
+  padding: 20px 23px;
+  background:
+    linear-gradient(110deg, rgba(70,255,192,.09), transparent 75%),
+    #0d1516;
+}
+
+.map-title-icon {
+  width: 46px;
+  height: 46px;
+  flex-basis: 46px;
+  border-radius: 16px;
+}
+
+.map-title strong {
+  font-size: 15px;
+  letter-spacing: -.3px;
+}
+
+.map-live {
+  padding: 9px 13px;
+  white-space: nowrap;
+  box-shadow: inset 0 0 16px rgba(70,255,192,.035);
+}
+
+.map-container {
+  height: clamp(460px, 68vh, 800px);
+  min-height: 400px;
+}
+
+.map-control {
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  border-color: rgba(255,255,255,.2);
+  background: rgba(7,14,15,.94);
+  box-shadow: 0 10px 28px rgba(0,0,0,.35);
+}
+
+.map-info-card {
+  border-color: rgba(70,255,192,.2);
+  border-radius: 17px;
+  background: rgba(6,13,14,.93);
+}
+
+/* Members panel */
+.members-section {
+  border-radius: 26px;
+  border-color: rgba(70,255,192,.14);
+  background:
+    linear-gradient(155deg, rgba(20,34,33,.98), rgba(8,14,15,.99));
+  box-shadow: 0 22px 60px rgba(0,0,0,.22);
+}
+
+.section-heading {
+  min-height: 88px;
+  padding: 22px 20px;
+  background:
+    linear-gradient(110deg, rgba(70,255,192,.075), transparent);
+}
+
+.section-heading h3 {
+  font-size: 15px;
+  letter-spacing: -.35px;
+}
+
+.member-count {
+  min-width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  box-shadow: 0 0 24px rgba(70,255,192,.07);
+}
+
+.members-list {
+  gap: 11px;
+  padding: 15px;
+  max-height: 650px;
+}
+
+.members-list > *:not(.empty-members) {
+  padding: 14px;
+  border-radius: 17px;
+  border-color: rgba(255,255,255,.075);
+  background:
+    linear-gradient(120deg, rgba(255,255,255,.035), rgba(255,255,255,.012));
+  transition: border-color .2s, background .2s, transform .2s;
+}
+
+.members-list > *:not(.empty-members):hover {
+  transform: translateY(-1px);
+  border-color: rgba(70,255,192,.28);
+  background: rgba(70,255,192,.045);
+}
+
+.empty-members {
+  min-height: 180px;
+  border-radius: 19px;
+  line-height: 1.9;
+}
+
+/* Group switching */
+.switch-panel {
+  padding: 23px;
+  gap: 22px;
+  border-radius: 22px;
+  border-color: rgba(70,255,192,.13);
+  background:
+    linear-gradient(120deg, rgba(70,255,192,.045), transparent 70%),
+    rgba(255,255,255,.018);
+}
+
+.switch-title strong {
+  font-size: 14px;
+}
+
+.switch-title span {
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.switch-form input {
+  height: 48px;
+  border-radius: 14px;
+}
+
+.secondary-btn.small {
+  min-height: 48px;
+  border-radius: 14px;
+}
+
+.leave-group-panel {
+  padding: 19px 21px;
+  border-radius: 20px;
+  background: linear-gradient(110deg, rgba(255,101,116,.055), transparent);
+}
+
+.leave-group-btn {
+  min-height: 43px;
+  padding-inline: 17px;
+  border-radius: 13px;
+  transition: background .2s, transform .2s;
+}
+
+.leave-group-btn:hover {
+  transform: translateY(-1px);
+}
+
+/* Buttons */
+.primary-btn,
+.secondary-btn,
+.copy-btn {
+  transition: transform .2s ease, box-shadow .2s ease,
+              border-color .2s ease, background .2s ease;
+}
+
+.primary-btn {
+  box-shadow: 0 8px 28px rgba(22,219,160,.16),
+              inset 0 1px rgba(255,255,255,.38);
+}
+
+.primary-btn:hover {
+  box-shadow: 0 14px 35px rgba(22,219,160,.24);
+}
+
+/* Footer */
+.footer {
+  padding-top: 4px;
+  line-height: 1.7;
+}
+
+/* Light theme compatibility */
+html:not(.dark) body,
+body:not(.dark) {
+  background: radial-gradient(ellipse at 50% -15%, rgba(7,158,100,.09), transparent 50%), #f1f6f3;
+}
+
+html:not(.dark) .topbar,
+body:not(.dark) .topbar {
+  background: rgba(255,255,255,.9);
+  border-bottom-color: rgba(20,60,40,.1);
+}
+
+html:not(.dark) .room-card,
+body:not(.dark) .room-card {
+  background: linear-gradient(145deg, #fff, #f5faf7);
+}
+
+html:not(.dark) .map-header,
+body:not(.dark) .map-header {
+  background: linear-gradient(110deg, rgba(7,158,100,.07), #fff);
+}
+
+html:not(.dark) .members-section,
+body:not(.dark) .members-section {
+  background: linear-gradient(155deg, #fff, #f6faf7);
+}
+
+html:not(.dark) .members-list > *:not(.empty-members),
+body:not(.dark) .members-list > *:not(.empty-members) {
+  background: linear-gradient(120deg, #fff, #f7faf8);
+}
+
+html:not(.dark) .switch-panel,
+body:not(.dark) .switch-panel {
+  background: linear-gradient(120deg, rgba(7,158,100,.035), #fff);
+}
+
+/* Tablet and mobile refinements */
+@media (max-width: 1050px) {
+  .room-card {
+    gap: 15px;
+    padding: 17px;
+  }
+
+  .map-container {
+    height: clamp(400px, 60vh, 650px);
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    min-height: 66px;
+  }
+
+  .page {
+    width: calc(100% - 20px);
+    margin-top: 12px;
+  }
+
+  .room-card {
+    gap: 13px;
+    padding: 11px;
+    border-radius: 22px;
+  }
+
+  .room-top {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  #currentRoomCode {
+    font-size: 29px;
+    letter-spacing: 3px;
+  }
+
+  .status-card {
+    min-height: 75px;
+    padding: 12px;
+  }
+
+  .map-wrapper,
+  .members-section {
+    width: 100%;
+    border-radius: 19px;
+  }
+
+  .map-header {
+    min-height: 70px;
+    padding: 13px;
+  }
+
+  .map-container {
+    height: min(62vh, 520px);
+    min-height: 340px;
+  }
+
+  .members-list {
+    max-height: 440px;
+    padding: 11px;
+  }
+
+  .switch-panel {
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .leave-group-panel {
+    flex-wrap: wrap;
+    padding: 14px;
+  }
+
+  .leave-group-hint {
+    min-width: calc(100% - 55px);
+  }
+
+  .leave-group-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 390px) {
+  .page {
+    width: calc(100% - 14px);
+  }
+
+  .room-card {
+    padding: 8px;
+  }
+
+  .map-title {
+    gap: 7px;
+  }
+
+  .map-live {
+    padding: 7px;
+    font-size: 8px;
+    letter-spacing: .5px;
+  }
+
+  .map-container {
+    min-height: 310px;
+  }
+
+  .switch-form {
+    flex-wrap: wrap;
+  }
+
+  .switch-form input,
+  .switch-form button {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+}
