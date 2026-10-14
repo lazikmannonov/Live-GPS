@@ -837,3 +837,56 @@ body:not(.dark) .switch-panel {
         height: 55vh;
     }
 }
+
+/* Xarita va yon panel joylashuvi */
+.tracking-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: start;
+    width: 100%;
+    max-width: none;
+    gap: 20px;
+    box-sizing: border-box;
+}
+
+.tracking-main {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+}
+
+.map-wrapper,
+.map-container {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    box-sizing: border-box;
+}
+
+#map,
+.map {
+    display: block;
+    width: 100% !important;
+    min-width: 0;
+    max-width: none !important;
+    height: 580px;
+    box-sizing: border-box;
+}
+
+.tracking-sidebar {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* Kichik ekranlar */
+@media (max-width: 900px) {
+    .tracking-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    #map,
+    .map {
+        height: 450px;
+    }
+}
