@@ -1267,24 +1267,17 @@ function initMap() {
 
             updateMyMarker();
             updateMapUsers();
-        } catch (error) {
-            console.error("Yandex map error:", error);
-        } finally {
-            mapPromise = null;
-        }
-    })();
-
-    return mapPromise;
-}
-
-function setMapLocation(options) {
-    if (!map) return;
-
-    try {
-        map.setLocation(options);
     } catch (error) {
-        console.error("Map location error:", error);
+    console.error("Yandex map error:", error);
+
+    const roomError = document.getElementById("roomError");
+    if (roomError) {
+        roomError.textContent =
+            "Xarita yuklanmadi. Internet yoki API cheklovini tekshiring.";
+        roomError.style.display = "block";
     }
+} finally {
+    mapPromise = null;
 }
 
 
