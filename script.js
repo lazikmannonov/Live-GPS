@@ -1462,6 +1462,27 @@ function clearMapMarkers() {
    MAP CAMERA
    ========================================================= */
 
+function setMapLocation(options = {}) {
+    if (!map) return;
+
+    try {
+        const { center, zoom, bounds, duration = 500 } = options;
+
+        const location = {};
+
+        if (center) location.center = center;
+        if (typeof zoom === "number") location.zoom = zoom;
+        if (bounds) location.bounds = bounds;
+
+        map.setLocation({
+            ...location,
+            duration
+        });
+    } catch (error) {
+        console.error("Map location error:", error);
+    }
+}
+
 function centerMapOnMe() {
     if (!map) {
         initMap().then(() => {
