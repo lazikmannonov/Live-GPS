@@ -1267,19 +1267,17 @@ function initMap() {
 
             updateMyMarker();
             updateMapUsers();
-    } catch (error) {
-    console.error("Yandex map error:", error);
 
-    const roomError = document.getElementById("roomError");
-    if (roomError) {
-        roomError.textContent =
-            "Xarita yuklanmadi. Internet yoki API cheklovini tekshiring.";
-        roomError.style.display = "block";
-    }
-} finally {
-    mapPromise = null;
+        } catch (error) {
+            console.error("Yandex map error:", error);
+            showRoomError("Xarita yuklanmadi. Internet yoki API cheklovini tekshiring.");
+        } finally {
+            mapPromise = null;
+        }
+    })();
+
+    return mapPromise;
 }
-
 
 /* =========================================================
    MARKERS
