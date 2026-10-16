@@ -133,26 +133,50 @@ function formatAccuracy(accuracy) {
         ? `±${(accuracy / 1000).toFixed(1)} km`
         : `±${Math.round(accuracy)} m`;
 }
-function formatLastSeen(lastSeen, online) {
-    if (online) return "Hozir onlayn";
 
-    if (!lastSeen) return "Oxirgi vaqt noma’lum";
+function formatLastSeen(lastSeen, online) {
+    if (online) return "Online · hozir";
+
+    if (!lastSeen) return "Oxirgi faollik noma’lum";
 
     const date = new Date(lastSeen);
 
     if (!Number.isFinite(date.getTime())) {
-        return "Oxirgi vaqt noma’lum";
+        return "Oxirgi faollik noma’lum";
     }
 
-    const now = new Date();
     const minutes = Math.max(
         0,
-        Math.floor((now.getTime() - date.getTime()) / 60000)
+        Math.floor((Date.now() - date.getTime()) / 60000)
     );
 
-    const time = date.toLocaleTimeString("uz-UZ", {
+    if (minutes < 1) return "1 minutdan kam oldin online edi";
+    if (minutes < 60) return `${minutes} minut oldin online edi`;
+
+    const hours = Math.floor(minutes / 60);
+
+    if (hours < 24) {
+        return `${hours} soat oldin online edi`;
+    }
+
+    const days = Math.floor(hours / 24);
+
+    return `${days} kun oldin online edi`;
+}
+
+function formatLastSeenClock(lastSeen) {
+    if (!lastSeen) return "";
+
+    const date = new Date(lastSeen);
+
+    if (!Number.isFinite(date.getTime())) return "";
+
+    return date.toLocaleTimeString("uz-UZ", {
         hour: "2-digit",
         minute: "2-digit"
+    });
+}
+
     });
 
     if (minutes < 1) {
@@ -1205,13 +1229,17 @@ function renderUsers() {
         }
 
         const avatarStyle = me ? "" : ` style="background:${userGradient(name)}"`;
+        
         const lastSeenText = me
-        ? ""
-        : formatLastSeen(user.lastSeen, user.online);
-       
+            ? ""
+            : formatLastSeen(user.lastSeen, user.online);
+
+        const lastSeenClock = me
+            ? ""
+            : formatLastSeenClock(user.lastSeen);
+
         return `
             <div class="member${me ? " me" : ""}" data-id="${escapeHtml(user.id)}">
-
                 <div class="member-avatar"${avatarStyle}>
                     ${escapeHtml(name.charAt(0).toUpperCase())}
                 </div>
@@ -1222,20 +1250,29 @@ function renderUsers() {
                         ${me ? '<span class="you-badge">SIZ</span>' : ""}
                     </div>
 
-               <div class="member-distance">${escapeHtml(text)}</div>
+                    <div class="member-distance">
+                        ${escapeHtml(text)}
+                    </div>
 
-              ${!me ? `
-                 <div class="member-last-seen">
-                    ${escapeHtml(lastSeenText)}
-                 </div>
-              ` : ""}
-                <span
-                    class="member-status ${user.online ? "online" : "offline"}"
-                    title="${user.online ? "Online" : "Offline"}"
-                ></span>
+                    ${!me ? `
+                        <div class="member-last-seen">
+                            ${escapeHtml(lastSeenText)}
+                        </div>
+                        ${lastSeenClock ? `
+                            <div class="member-last-seen-clock">
+                                Oxirgi faollik: ${escapeHtml(lastSeenClock)}
+                            </div>
+                        ` : ""}
+                    ` : ""}
 
+                    <span
+                        class="member-status ${user.online ? "online" : "offline"}"
+                        title="${user.online ? "Online" : "Offline"}"
+                    ></span>
+                </div>
             </div>
         `;
+
     }).join("");
 }
 
@@ -1354,8 +1391,11 @@ function updateMarkerElement(element, user, isMe = false) {
 
     if (initial) initial.textContent = name.charAt(0).toUpperCase();
     if (nameEl) nameEl.textContent = name;
-    if (statusEl) statusEl.textContent = isMe ? "Siz" : (online ? "Online" : "Offline");
-
+   if (statusEl) {
+    statusEl.textContent = isMe
+        ? "Siz · Online"
+        : formatLastSeen(user.lastSeen, user.online);
+}
     if (!isMe) {
         const hue = hueFromString(name);
 
@@ -1824,7 +1864,22 @@ function injectStyles() {
     const style = document.createElement("style");
     style.id = "live-gps-extra-style";
 
-    style.textContent = `
+    style.textContent = .member-last-seen-clock {
+    margin-top: 3px;
+    color: var(--muted, #7b8580);
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+body.dark .member-last-seen-clock {
+    color: #9ca9a1;
+}
+
+.gps-marker-status {
+    max-width: 145px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+} `
 .member-last-seen {
     margin-top: 4px;
     color: var(--muted, #7b8580);
@@ -2108,8 +2163,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     injectStyles();
     setupEvents();
-   setInterval(() => {
-    if (users.length > 0) renderUsers();
-}, 60_000);
+  setInterval(() => {
+    if (users.length > 0) {
+        renderUsers();
+        updateMapUsers();
+    }
+}, 10_000);
     restoreSession();
 });
