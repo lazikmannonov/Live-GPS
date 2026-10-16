@@ -133,7 +133,49 @@ function formatAccuracy(accuracy) {
         ? `±${(accuracy / 1000).toFixed(1)} km`
         : `±${Math.round(accuracy)} m`;
 }
+function formatLastSeen(lastSeen, online) {
+    if (online) return "Hozir onlayn";
 
+    if (!lastSeen) return "Oxirgi vaqt noma’lum";
+
+    const date = new Date(lastSeen);
+
+    if (!Number.isFinite(date.getTime())) {
+        return "Oxirgi vaqt noma’lum";
+    }
+
+    const now = new Date();
+    const minutes = Math.max(
+        0,
+        Math.floor((now.getTime() - date.getTime()) / 60000)
+    );
+
+    const time = date.toLocaleTimeString("uz-UZ", {
+        hour: "2-digit",
+        minute: "2-digit"
+    });
+
+    if (minutes < 1) {
+        return `Hozirgina offline bo‘lgan · ${time}`;
+    }
+
+    if (minutes < 60) {
+        return `${minutes} daqiqa oldin onlayn bo‘lgan · ${time}`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+
+    if (hours < 24) {
+        return `${hours} soat oldin onlayn bo‘lgan · ${time}`;
+    }
+
+    const dateText = date.toLocaleDateString("uz-UZ", {
+        day: "numeric",
+        month: "long"
+    });
+
+    return `${dateText}, ${time}`;
+}
 
 /* =========================================================
    STATE
@@ -1163,7 +1205,10 @@ function renderUsers() {
         }
 
         const avatarStyle = me ? "" : ` style="background:${userGradient(name)}"`;
-
+        const lastSeenText = me
+        ? ""
+        : formatLastSeen(user.lastSeen, user.online);
+       
         return `
             <div class="member${me ? " me" : ""}" data-id="${escapeHtml(user.id)}">
 
@@ -1177,9 +1222,13 @@ function renderUsers() {
                         ${me ? '<span class="you-badge">SIZ</span>' : ""}
                     </div>
 
-                    <div class="member-distance">${escapeHtml(text)}</div>
-                </div>
+                   <div class="member-distance">${escapeHtml(text)}</div>
 
+                   ${!me ? `
+                  <div class="member-last-seen">
+                  ${escapeHtml(lastSeenText)}
+                  </div>
+                  ` : ""}
                 <span
                     class="member-status ${user.online ? "online" : "offline"}"
                     title="${user.online ? "Online" : "Offline"}"
@@ -1775,7 +1824,17 @@ function injectStyles() {
 
     style.id = "live-gps-extra-style";
 
-    style.textContent = `
+    style.textContent = .member-last-seen {
+    margin-top: 4px;
+    color: var(--muted, #7b8580);
+    font-size: 11px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+body.dark .member-last-seen {
+    color: #9ca9a1;
+} `
 
 /* ---------- Status ranglari ---------- */
 
@@ -2052,5 +2111,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     injectStyles();
     setupEvents();
+   setInterval(() => {
+    if (users.length > 0) renderUsers();
+}, 60_000);
     restoreSession();
 });
