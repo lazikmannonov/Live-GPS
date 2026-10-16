@@ -318,18 +318,11 @@ async function saveMember(
                 lng,
                 accuracy,
                 online,
-                last_seen
-            )
-
-            VALUES(
-                $1,
-                $2,
-                $3,
-                $4,
-                $5,
-                $6,
-                $7,
-                NOW()
+              last_seen
+                  )
+                  
+               VALUES
+               ($1, $2, $3, $4, $5, $6, $7, $8)
             )
 
             ON CONFLICT(
@@ -344,7 +337,7 @@ async function saveMember(
                 lng=EXCLUDED.lng,
                 accuracy=EXCLUDED.accuracy,
                 online=EXCLUDED.online,
-                last_seen=NOW()
+              last_seen=EXCLUDED.last_seen
         `,
         [
             member.roomCode,
@@ -370,6 +363,9 @@ async function saveMember(
                 : null,
 
             !!member.online
+            member.lastSeen && Number.isFinite(new Date(member.lastSeen).getTime())
+    ? new Date(member.lastSeen)
+    : new Date()
         ]
     );
 }
