@@ -1222,13 +1222,13 @@ function renderUsers() {
                         ${me ? '<span class="you-badge">SIZ</span>' : ""}
                     </div>
 
-                   <div class="member-distance">${escapeHtml(text)}</div>
+               <div class="member-distance">${escapeHtml(text)}</div>
 
-                   ${!me ? `
-                  <div class="member-last-seen">
-                  ${escapeHtml(lastSeenText)}
-                  </div>
-                  ` : ""}
+              ${!me ? `
+                 <div class="member-last-seen">
+                    ${escapeHtml(lastSeenText)}
+                 </div>
+              ` : ""}
                 <span
                     class="member-status ${user.online ? "online" : "offline"}"
                     title="${user.online ? "Online" : "Offline"}"
@@ -1817,14 +1817,15 @@ function setupEvents() {
    MARKER & EXTRA STYLES
    ========================================================= */
 
+
 function injectStyles() {
     if ($("live-gps-extra-style")) return;
 
     const style = document.createElement("style");
-
     style.id = "live-gps-extra-style";
 
-    style.textContent = .member-last-seen {
+    style.textContent = `
+.member-last-seen {
     margin-top: 4px;
     color: var(--muted, #7b8580);
     font-size: 11px;
@@ -1834,10 +1835,9 @@ function injectStyles() {
 
 body.dark .member-last-seen {
     color: #9ca9a1;
-} `
+}
 
-/* ---------- Status ranglari ---------- */
-
+/* Status ranglari */
 .connection-pill.connecting {
     color: #b7791f;
     background: rgba(245, 158, 11, .10);
@@ -1863,8 +1863,7 @@ body.dark .member-last-seen {
 body.dark #connectionStatus.online,
 body.dark #locationStatus.online { color: #46eb91; }
 
-/* ---------- Saqlangan guruhlar ---------- */
-
+/* Saqlangan guruhlar */
 .saved-group-info {
     display: flex;
     flex-direction: column;
@@ -1889,8 +1888,7 @@ body.dark #locationStatus.online { color: #46eb91; }
     line-height: 1;
 }
 
-/* ---------- A'zolar ---------- */
-
+/* A'zolar */
 .member { cursor: pointer; }
 
 .member.me {
@@ -1898,12 +1896,10 @@ body.dark #locationStatus.online { color: #46eb91; }
     background: rgba(25, 214, 107, .05);
 }
 
-/* ---------- Marker ---------- */
-
+/* Xarita markerlari */
 .gps-premium-marker {
     --c1: #4d88ff;
     --c2: #2f63d8;
-
     position: relative;
     width: 44px;
     height: 44px;
@@ -1938,7 +1934,9 @@ body.dark #locationStatus.online { color: #46eb91; }
     transition: transform .25s cubic-bezier(.22, .8, .3, 1);
 }
 
-.gps-premium-marker:hover .gps-marker-dot { transform: scale(1.1); }
+.gps-premium-marker:hover .gps-marker-dot {
+    transform: scale(1.1);
+}
 
 .gps-marker-dot::before {
     content: "";
@@ -1952,7 +1950,7 @@ body.dark #locationStatus.online { color: #46eb91; }
 }
 
 @keyframes gps-ring {
-    0%   { transform: scale(.7); opacity: .55; }
+    0% { transform: scale(.7); opacity: .55; }
     100% { transform: scale(1.25); opacity: 0; }
 }
 
@@ -1973,14 +1971,14 @@ body.dark #locationStatus.online { color: #46eb91; }
     filter: grayscale(.85);
 }
 
-.gps-premium-marker.offline .gps-marker-dot::before { animation: none; }
+.gps-premium-marker.offline .gps-marker-dot::before {
+    animation: none;
+}
 
 .gps-premium-marker.offline .gps-marker-online {
     background: #9ca3af;
     box-shadow: none;
 }
-
-/* Bosilganda chiqadigan ism kartasi */
 
 .gps-marker-card {
     position: absolute;
@@ -2060,7 +2058,6 @@ body.dark .gps-marker-status { color: #9ca9a1; }
 
     document.head.appendChild(style);
 }
-
 
 /* =========================================================
    DEBUG
