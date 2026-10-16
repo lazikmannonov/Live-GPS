@@ -291,85 +291,67 @@ async function updateRoom(
 
 
 /* =========================================================
-   SAVE MEMBER
+   SAVE MEMBER — TUZATILGAN
    ========================================================= */
 
-async function saveMember(
-    member
-) {
-
+async function saveMember(member) {
     if (
         !databaseReady ||
         !pool ||
         !member ||
-        !member.roomCode
+        !member.roomCode ||
+        !member.id
     ) {
         return;
     }
 
+    const lastSeenDate = member.lastSeen
+        ? new Date(member.lastSeen)
+        : new Date();
+
+    const lastSeen = Number.isFinite(lastSeenDate.getTime())
+        ? lastSeenDate
+        : new Date();
+
+    const lat = Number(member.lat);
+    const lng = Number(member.lng);
+    const accuracy = Number(member.accuracy);
 
     await pool.query(
         `
-            INSERT INTO gps_members(
-                room_code,
-                user_id,
-                name,
-                lat,
-                lng,
-                accuracy,
-                online,
-              last_seen
-                  )
-                  
-               VALUES
-               ($1, $2, $3, $4, $5, $6, $7, $8)
-            )
+        INSERT INTO gps_members (
+            room_code,
+            user_id,
+            name,
+            lat,
+            lng,
+            accuracy,
+            online,
+            last_seen
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 
-            ON CONFLICT(
-                room_code,
-                user_id
-            )
-
-            DO UPDATE SET
-
-                name=EXCLUDED.name,
-                lat=EXCLUDED.lat,
-                lng=EXCLUDED.lng,
-                accuracy=EXCLUDED.accuracy,
-                online=EXCLUDED.online,
-              last_seen=EXCLUDED.last_seen
+        ON CONFLICT (room_code, user_id)
+        DO UPDATE SET
+            name = EXCLUDED.name,
+            lat = EXCLUDED.lat,
+            lng = EXCLUDED.lng,
+            accuracy = EXCLUDED.accuracy,
+            online = EXCLUDED.online,
+            last_seen = EXCLUDED.last_seen
         `,
         [
             member.roomCode,
             member.id,
             member.name || "Noma'lum",
-
-            Number.isFinite(
-                Number(member.lat)
-            )
-                ? Number(member.lat)
-                : null,
-
-            Number.isFinite(
-                Number(member.lng)
-            )
-                ? Number(member.lng)
-                : null,
-
-            Number.isFinite(
-                Number(member.accuracy)
-            )
-                ? Number(member.accuracy)
-                : null,
-
-            !!member.online
-            member.lastSeen && Number.isFinite(new Date(member.lastSeen).getTime())
-    ? new Date(member.lastSeen)
-    : new Date()
+            Number.isFinite(lat) ? lat : null,
+            Number.isFinite(lng) ? lng : null,
+            Number.isFinite(accuracy) ? accuracy : null,
+            !!member.online,
+            lastSeen
         ]
     );
 }
-
 
 /* =========================================================
    LOAD ROOM
