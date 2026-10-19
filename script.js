@@ -1086,7 +1086,7 @@ function startLocationTracking() {
 
     if (watchId !== null) return;
 
-    setLocationStatus("Joylashuv so‘ralmoqda...", "connecting");
+    setLocationStatus("Telefon GPS tekshirilmoqda...", "connecting");
 
     watchId = navigator.geolocation.watchPosition(
         position => {
@@ -1099,36 +1099,35 @@ function startLocationTracking() {
 
             myLatitude = Number(latitude);
             myLongitude = Number(longitude);
-            myAccuracy = Number.isFinite(Number(accuracy)) ? Number(accuracy) : null;
+            myAccuracy = Number(accuracy);
 
             setLocationStatus(
-                `Joylashuv olindi (${formatAccuracy(myAccuracy)})`,
+                `GPS olindi: aniqlik ${Math.round(accuracy)} m`,
                 "online"
             );
 
             updateMyMarker();
-            sendLocation();
+            sendLocation(true);
             renderUsers();
         },
-
         error => {
             console.error("GPS ERROR:", error.code, error.message);
 
-            if (error.code === 1) {
-                setLocationStatus("Brauzerda joylashuvga ruxsat bering", "error");
-            } else if (error.code === 2) {
-                setLocationStatus("Joylashuv topilmadi. GPSni tekshiring", "error");
-            } else if (error.code === 3) {
-                setLocationStatus("GPS sekin javob bermoqda. Kutilmoqda...", "connecting");
-            } else {
-                setLocationStatus("GPS xatosi: sahifani qayta oching", "error");
-            }
-        },
+            const messages = {
+                1: "GPS ruxsati rad etilgan. Brauzer sozlamalarini tekshiring.",
+                2: "Telefon joylashuvni aniqlay olmadi. GPS va joylashuv xizmatlarini tekshiring.",
+                3: "GPS javobi kechikmoqda. Ochiq joyda qayta urinib ko‘ring."
+            };
 
+            setLocationStatus(
+                messages[error.code] || `GPS xatosi: ${error.message}`,
+                "error"
+            );
+        },
         {
             enableHighAccuracy: true,
-            maximumAge: 5000,
-            timeout: 60000
+            maximumAge: 0,
+            timeout: 15000
         }
     );
 }
@@ -1678,13 +1677,28 @@ function centerMapOnUser(user) {
     const lat = me ? myLatitude : toCoord(user.lat);
     const lng = me ? myLongitude : toCoord(user.lng);
 
-    if (!validCoords(lat, lng)) {
-        showRoomError("Bu foydalanuvchining joylashuvi hali mavjud emas.");
+  if (!validCoords(lat, lng)) {
+    console.warn("GPS koordinatalari mavjud emas:", {
+        userId: user.id,
+        userName: user.name,
+        lat: user.lat,
+        lng: user.lng,
+        online: user.online,
+        myLatitude,
+        myLongitude,
+        currentRoomCode,
+        socketState: ws?.readyState
+    });
 
-        setTimeout(() => clearError("roomError"), 2500);
+    showRoomError(
+        user.online
+            ? "Foydalanuvchi online, lekin GPS koordinatalari hali olinmagan."
+            : "Foydalanuvchi offline. Uning oxirgi koordinatalari mavjud emas."
+    );
 
-        return;
-    }
+    setTimeout(() => clearError("roomError"), 3500);
+    return;
+}
 
     if (!map) {
         initMap().then(() => {
