@@ -164,6 +164,7 @@ function formatLastSeen(lastSeen, online) {
     return `${days} kun oldin online edi`;
 }
 
+
 function formatLastSeenClock(lastSeen) {
     if (!lastSeen) return "";
 
@@ -205,28 +206,6 @@ function formatOfflineDetails(lastSeen) {
 
     if (hours < 24) {
         return `${hours} soat oldin offline bo‘lgan · ${time}`;
-    }
-
-    const dateText = date.toLocaleDateString("uz-UZ", {
-        day: "numeric",
-        month: "long"
-    });
-
-    return `${dateText}, ${time}`;
-}
-
-    if (minutes < 1) {
-        return `Hozirgina offline bo‘lgan · ${time}`;
-    }
-
-    if (minutes < 60) {
-        return `${minutes} daqiqa oldin onlayn bo‘lgan · ${time}`;
-    }
-
-    const hours = Math.floor(minutes / 60);
-
-    if (hours < 24) {
-        return `${hours} soat oldin onlayn bo‘lgan · ${time}`;
     }
 
     const dateText = date.toLocaleDateString("uz-UZ", {
