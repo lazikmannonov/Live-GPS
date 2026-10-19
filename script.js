@@ -1245,12 +1245,14 @@ function renderUsers() {
 
         const avatarStyle = me ? "" : ` style="background:${userGradient(name)}"`;
         
-        const lastSeenText = me
-          : (
-    user.online
-        ? formatLastSeen(user.lastSeen, true)
-        : formatOfflineDetails(user.lastSeen)
-);
+       
+const lastSeenText = me
+    ? ""
+    : (
+        user.online
+            ? formatLastSeen(user.lastSeen, true)
+            : formatOfflineDetails(user.lastSeen)
+    );
 
         const lastSeenClock = me
             ? ""
