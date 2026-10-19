@@ -177,7 +177,56 @@ function formatLastSeenClock(lastSeen) {
     });
 }
 
+    function formatLastSeenClock(lastSeen) {
+    if (!lastSeen) return "";
+
+    const date = new Date(lastSeen);
+
+    if (!Number.isFinite(date.getTime())) return "";
+
+    return date.toLocaleTimeString("uz-UZ", {
+        hour: "2-digit",
+        minute: "2-digit"
     });
+}
+
+function formatOfflineDetails(lastSeen) {
+    if (!lastSeen) return "Oxirgi faollik noma’lum";
+
+    const date = new Date(lastSeen);
+
+    if (!Number.isFinite(date.getTime())) {
+        return "Oxirgi faollik noma’lum";
+    }
+
+    const minutes = Math.max(
+        0,
+        Math.floor((Date.now() - date.getTime()) / 60000)
+    );
+
+    const time = formatLastSeenClock(lastSeen);
+
+    if (minutes < 1) {
+        return `Hozirgina offline bo‘lgan · ${time}`;
+    }
+
+    if (minutes < 60) {
+        return `${minutes} daqiqa oldin offline bo‘lgan · ${time}`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+
+    if (hours < 24) {
+        return `${hours} soat oldin offline bo‘lgan · ${time}`;
+    }
+
+    const dateText = date.toLocaleDateString("uz-UZ", {
+        day: "numeric",
+        month: "long"
+    });
+
+    return `${dateText}, ${time}`;
+}
 
     if (minutes < 1) {
         return `Hozirgina offline bo‘lgan · ${time}`;
@@ -1858,13 +1907,15 @@ function setupEvents() {
    ========================================================= */
 
 
+
 function injectStyles() {
     if ($("live-gps-extra-style")) return;
 
     const style = document.createElement("style");
     style.id = "live-gps-extra-style";
 
-    style.textContent = .member-last-seen-clock {
+    style.textContent = `
+.member-last-seen-clock {
     margin-top: 3px;
     color: var(--muted, #7b8580);
     font-size: 10px;
@@ -1875,11 +1926,6 @@ body.dark .member-last-seen-clock {
     color: #9ca9a1;
 }
 
-.gps-marker-status {
-    max-width: 145px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-} `
 .member-last-seen {
     margin-top: 4px;
     color: var(--muted, #7b8580);
@@ -1892,7 +1938,12 @@ body.dark .member-last-seen {
     color: #9ca9a1;
 }
 
-/* Status ranglari */
+.gps-marker-status {
+    max-width: 145px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .connection-pill.connecting {
     color: #b7791f;
     background: rgba(245, 158, 11, .10);
@@ -1905,20 +1956,27 @@ body.dark .member-last-seen {
 }
 
 #connectionStatus.online,
-#locationStatus.online { color: var(--green-dark); }
+#locationStatus.online {
+    color: var(--green-dark);
+}
 
 #connectionStatus.connecting,
-#locationStatus.connecting { color: #b7791f; }
+#locationStatus.connecting {
+    color: #b7791f;
+}
 
 #connectionStatus.error,
 #locationStatus.error,
 #connectionStatus.offline,
-#locationStatus.offline { color: var(--danger); }
+#locationStatus.offline {
+    color: var(--danger);
+}
 
 body.dark #connectionStatus.online,
-body.dark #locationStatus.online { color: #46eb91; }
+body.dark #locationStatus.online {
+    color: #46eb91;
+}
 
-/* Saqlangan guruhlar */
 .saved-group-info {
     display: flex;
     flex-direction: column;
@@ -1943,15 +2001,15 @@ body.dark #locationStatus.online { color: #46eb91; }
     line-height: 1;
 }
 
-/* A'zolar */
-.member { cursor: pointer; }
+.member {
+    cursor: pointer;
+}
 
 .member.me {
     border-color: rgba(25, 214, 107, .30);
     background: rgba(25, 214, 107, .05);
 }
 
-/* Xarita markerlari */
 .gps-premium-marker {
     --c1: #4d88ff;
     --c2: #2f63d8;
@@ -2005,8 +2063,15 @@ body.dark #locationStatus.online { color: #46eb91; }
 }
 
 @keyframes gps-ring {
-    0% { transform: scale(.7); opacity: .55; }
-    100% { transform: scale(1.25); opacity: 0; }
+    0% {
+        transform: scale(.7);
+        opacity: .55;
+    }
+
+    100% {
+        transform: scale(1.25);
+        opacity: 0;
+    }
 }
 
 .gps-marker-online {
@@ -2088,7 +2153,7 @@ body.dark #locationStatus.online { color: #46eb91; }
     color: #647067;
     font-size: 10px;
     font-weight: 600;
-    line-height: 1;
+    line-height: 1.3;
 }
 
 body.dark .gps-marker-card {
@@ -2097,17 +2162,35 @@ body.dark .gps-marker-card {
     box-shadow: 0 12px 40px rgba(0, 0, 0, .45);
 }
 
-body.dark .gps-marker-name { color: #f3f7f5; }
-body.dark .gps-marker-status { color: #9ca9a1; }
+body.dark .gps-marker-name {
+    color: #f3f7f5;
+}
+
+body.dark .gps-marker-status {
+    color: #9ca9a1;
+}
 
 @media (max-width: 600px) {
-    .gps-premium-marker { width: 40px; height: 40px; }
-    .gps-marker-dot { width: 34px; height: 34px; font-size: 14px; }
-    .gps-marker-name { font-size: 12px; }
+    .gps-premium-marker {
+        width: 40px;
+        height: 40px;
+    }
+
+    .gps-marker-dot {
+        width: 34px;
+        height: 34px;
+        font-size: 14px;
+    }
+
+    .gps-marker-name {
+        font-size: 12px;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .gps-marker-dot::before { animation: none; }
+    .gps-marker-dot::before {
+        animation: none;
+    }
 }
 `;
 
