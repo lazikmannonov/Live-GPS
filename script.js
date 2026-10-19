@@ -177,19 +177,6 @@ function formatLastSeenClock(lastSeen) {
     });
 }
 
-    function formatLastSeenClock(lastSeen) {
-    if (!lastSeen) return "";
-
-    const date = new Date(lastSeen);
-
-    if (!Number.isFinite(date.getTime())) return "";
-
-    return date.toLocaleTimeString("uz-UZ", {
-        hour: "2-digit",
-        minute: "2-digit"
-    });
-}
-
 function formatOfflineDetails(lastSeen) {
     if (!lastSeen) return "Oxirgi faollik noma’lum";
 
@@ -1280,8 +1267,11 @@ function renderUsers() {
         const avatarStyle = me ? "" : ` style="background:${userGradient(name)}"`;
         
         const lastSeenText = me
-            ? ""
-            : formatLastSeen(user.lastSeen, user.online);
+          : (
+    user.online
+        ? formatLastSeen(user.lastSeen, true)
+        : formatOfflineDetails(user.lastSeen)
+);
 
         const lastSeenClock = me
             ? ""
@@ -1440,11 +1430,16 @@ function updateMarkerElement(element, user, isMe = false) {
 
     if (initial) initial.textContent = name.charAt(0).toUpperCase();
     if (nameEl) nameEl.textContent = name;
-   if (statusEl) {
+ if (statusEl) {
     statusEl.textContent = isMe
         ? "Siz · Online"
-        : formatLastSeen(user.lastSeen, user.online);
+        : (
+            user.online
+                ? "Online · hozir"
+                : formatOfflineDetails(user.lastSeen)
+        );
 }
+   
     if (!isMe) {
         const hue = hueFromString(name);
 
@@ -2243,14 +2238,15 @@ window.GPS_DEBUG = {
 
 document.addEventListener("DOMContentLoaded", () => {
     applyTheme(initialTheme());
-
     injectStyles();
     setupEvents();
-  setInterval(() => {
-    if (users.length > 0) {
-        renderUsers();
-        updateMapUsers();
-    }
-}, 10_000);
+
+    setInterval(() => {
+        if (users.length > 0) {
+            renderUsers();
+            updateMapUsers();
+        }
+    }, 10_000);
+
     restoreSession();
 });
